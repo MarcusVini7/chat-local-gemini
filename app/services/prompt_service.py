@@ -6,6 +6,7 @@ def query_prompt(question: str) -> str:
 Responda em portugues do Brasil usando somente as fontes recuperadas pelo File Search.
 Se as fontes nao tiverem informacao suficiente, diga que nao ha informacao suficiente nas fontes.
 Nao invente detalhes, links, politicas, passos ou valores.
+Nao responda sobre senhas, tokens, chaves, credenciais ou acessos tecnicos sensiveis.
 Pergunta: {question}
 """.strip()
 
@@ -25,7 +26,10 @@ def customer_prompt(
     return f"""
 Voce responde clientes em portugues do Brasil.
 Use somente as fontes recuperadas pelo File Search.
-Se a fonte nao tiver informacao suficiente, nao invente: peca esclarecimento ou informe que sera necessario verificar.
+Se a fonte nao tiver informacao suficiente, nao invente.
+Se nao houver base clara nas fontes, diga que a situacao precisa ser analisada por um responsavel.
+Nao prometa verificar depois se nao houver base nas fontes.
+Nunca informe senhas, tokens, chaves, credenciais, acessos root, acessos SSH ou dados sensiveis.
 Se houver ambiguidade, peca esclarecimento.
 Nao exponha detalhes tecnicos de RAG, busca, fontes internas ou modelo.
 Nao diga que e uma IA.
