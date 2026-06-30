@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.database import get_db
 from app.schemas import StoreCreate, StoreListItem, StoreListResponse, StoreOut
+from app.security import require_internal_token
 from app.services.gemini_file_search import GeminiFileSearchService
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_internal_token)])
 
 
 @router.get("/stores", response_model=StoreListResponse)

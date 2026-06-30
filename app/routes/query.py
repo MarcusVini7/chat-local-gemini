@@ -1,7 +1,7 @@
 import json
 import re
 
-from fastapi import APIRouter, HTTPException, Query as QueryParam
+from fastapi import APIRouter, Depends, HTTPException, Query as QueryParam
 
 from app.database import get_db
 from app.schemas import (
@@ -13,10 +13,11 @@ from app.schemas import (
     QueryRequest,
     QueryResponse,
 )
+from app.security import require_internal_token
 from app.services.answer_service import answer_customer, answer_query
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_internal_token)])
 
 
 @router.get("/queries", response_model=QueryListResponse)

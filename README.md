@@ -21,6 +21,28 @@ uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload
 
 Preencha `GEMINI_API_KEY` no `.env`.
 
+## Autenticação interna
+
+Por padrão, `INTERNAL_API_TOKEN` vazio mantém os endpoints operacionais acessíveis
+sem token para desenvolvimento local. Para ativar a proteção:
+
+```bash
+INTERNAL_API_TOKEN=$(openssl rand -hex 32)
+sed -i "s/^INTERNAL_API_TOKEN=.*/INTERNAL_API_TOKEN=$INTERNAL_API_TOKEN/" .env
+export INTERNAL_API_TOKEN
+```
+
+Reinicie a API após alterar o `.env`. Envie o token nas chamadas protegidas:
+
+```bash
+curl -fsS http://127.0.0.1:8765/stores \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" \
+  | python -m json.tool
+```
+
+`GET /health` permanece público. Stores, documentos, queries e
+`/answer/customer` exigem o header quando `INTERNAL_API_TOKEN` está configurado.
+
 ## Endpoints
 
 ### Health
@@ -33,6 +55,7 @@ curl http://127.0.0.1:8765/health
 
 ```bash
 curl -X POST http://127.0.0.1:8765/stores \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "tenantId": "ihx",
@@ -44,15 +67,19 @@ curl -X POST http://127.0.0.1:8765/stores \
 ### Listar stores
 
 ```bash
-curl -fsS "http://127.0.0.1:8765/stores" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/stores?tenantId=marcus" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/stores?tenantId=marcus&storeKey=curso-devops" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/stores" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/stores?tenantId=marcus" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/stores?tenantId=marcus&storeKey=curso-devops" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
 ```
 
 ### Upload de documento
 
 ```bash
 curl -X POST http://127.0.0.1:8765/documents/upload \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" \
   -F tenantId=ihx \
   -F storeKey=access-pro \
   -F file=@/caminho/para/Cadastro-de-Colaborador-Access-Pro.pdf
@@ -61,16 +88,21 @@ curl -X POST http://127.0.0.1:8765/documents/upload \
 ### Listar documentos
 
 ```bash
-curl -fsS "http://127.0.0.1:8765/documents" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops&status=indexed" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/documents" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops&status=indexed" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
 ```
 
 ### Query interna
 
 ```bash
 curl -X POST http://127.0.0.1:8765/query \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "tenantId": "ihx",
@@ -82,17 +114,23 @@ curl -X POST http://127.0.0.1:8765/query \
 ### Listar histórico de queries
 
 ```bash
-curl -fsS "http://127.0.0.1:8765/queries" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/queries?tenantId=marcus&storeKey=curso-devops" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/queries?shouldEscalate=true" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/queries?confidence=low" | python -m json.tool
-curl -fsS "http://127.0.0.1:8765/queries?limit=20" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?tenantId=marcus&storeKey=curso-devops" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?shouldEscalate=true" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?confidence=low" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?limit=20" \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
 ```
 
 ### Atendimento WhatsApp/e-mail
 
 ```bash
 curl -X POST http://127.0.0.1:8765/answer/customer \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{
     "tenantId": "ihx",
@@ -109,7 +147,7 @@ curl -X POST http://127.0.0.1:8765/answer/customer \
 ## Exemplo Node.js
 
 ```bash
-node examples/node-client.js
+CHAT_LOCAL_GEMINI_TOKEN="$INTERNAL_API_TOKEN" node examples/node-client.js
 ```
 
 O retorno esperado para a plataforma:
@@ -139,7 +177,27 @@ source .venv/bin/activate
 python scripts/smoke_test.py
 ```
 
-O smoke test valida `/health` e o 404 esperado ao consultar uma store inexistente. Testes com store/upload/query reais precisam de `GEMINI_API_KEY` configurada.
+O smoke test carrega o `.env`, envia `X-Internal-Token` quando configurado e
+valida `/health`, as listagens e o 404 esperado ao consultar uma store
+inexistente. Testes com store/upload/query reais precisam de `GEMINI_API_KEY`
+configurada.
+
+### Teste manual da autenticação
+
+Com `INTERNAL_API_TOKEN=` vazio no `.env`, as rotas operacionais funcionam sem
+header. Com um token configurado e a API reiniciada:
+
+```bash
+curl -sS -o /tmp/no-token.json -w "%{http_code}\n" \
+  http://127.0.0.1:8765/stores
+cat /tmp/no-token.json
+
+curl -fsS http://127.0.0.1:8765/stores \
+  -H "X-Internal-Token: $INTERNAL_API_TOKEN" \
+  | python -m json.tool
+```
+
+A primeira chamada deve retornar `401`; a segunda deve retornar `200`.
 
 ## Banco SQLite
 

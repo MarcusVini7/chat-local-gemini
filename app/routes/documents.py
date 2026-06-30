@@ -2,15 +2,16 @@ import hashlib
 import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.config import settings
 from app.database import get_db
 from app.schemas import DocumentListItem, DocumentListResponse, DocumentUploadResponse
+from app.security import require_internal_token
 from app.services.gemini_file_search import GeminiFileSearchService
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_internal_token)])
 
 
 @router.get("/documents", response_model=DocumentListResponse)

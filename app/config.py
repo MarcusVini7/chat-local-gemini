@@ -11,6 +11,7 @@ load_dotenv()
 @dataclass(frozen=True)
 class Settings:
     service_name: str = "chat-local-gemini"
+    internal_api_token: str = os.getenv("INTERNAL_API_TOKEN", "")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
     gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
     gemini_embedding_model: str = os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-2")

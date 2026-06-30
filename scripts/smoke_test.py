@@ -1,15 +1,23 @@
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 
 BASE_URL = "http://127.0.0.1:8765"
+load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+INTERNAL_API_TOKEN = os.getenv("INTERNAL_API_TOKEN", "")
 
 
 def request(method: str, path: str, payload: dict | None = None) -> tuple[int, str]:
     data = None
     headers = {}
+    if INTERNAL_API_TOKEN:
+        headers["X-Internal-Token"] = INTERNAL_API_TOKEN
     if payload is not None:
         data = json.dumps(payload).encode("utf-8")
         headers["Content-Type"] = "application/json"

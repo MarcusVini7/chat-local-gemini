@@ -1,32 +1,65 @@
-const BASE_URL = process.env.CHAT_LOCAL_GEMINI_URL || "http://127.0.0.1:8765";
+const CHAT_LOCAL_GEMINI_URL =
+  process.env.CHAT_LOCAL_GEMINI_URL || "http://127.0.0.1:8765";
+const CHAT_LOCAL_GEMINI_TOKEN =
+  process.env.CHAT_LOCAL_GEMINI_TOKEN || "";
+const REQUEST_TIMEOUT_MS = 15000;
 
-async function askAnaContext() {
-  const response = await fetch(`${BASE_URL}/answer/customer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      tenantId: "ihx",
-      channel: "whatsapp",
-      storeKey: "access-pro",
-      customerMessage: "Como cadastro um colaborador?",
-      ticketContext: { lastMessages: [] },
-      style: "atendimento_whatsapp",
-    }),
-  });
+async function answerCustomer(payload) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const headers = { "Content-Type": "application/json" };
 
-  if (!response.ok) {
-    throw new Error(`chat-local-gemini ${response.status}: ${await response.text()}`);
+  if (CHAT_LOCAL_GEMINI_TOKEN) {
+    headers["X-Internal-Token"] = CHAT_LOCAL_GEMINI_TOKEN;
   }
 
-  return response.json();
+  try {
+    const response = await fetch(
+      `${CHAT_LOCAL_GEMINI_URL}/answer/customer`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      },
+    );
+    const body = await response.text();
+
+    if (!response.ok) {
+      throw new Error(
+        `chat-local-gemini request failed: status=${response.status} body=${body}`,
+      );
+    }
+
+    return JSON.parse(body);
+  } catch (error) {
+    if (error.name === "AbortError") {
+      throw new Error(
+        `chat-local-gemini request timed out after ${REQUEST_TIMEOUT_MS}ms`,
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
-askAnaContext()
-  .then((result) => {
-    console.log("Resposta para Ana usar antes de enviar ao cliente:");
-    console.log(JSON.stringify(result, null, 2));
+if (require.main === module) {
+  answerCustomer({
+    tenantId: "marcus",
+    channel: "whatsapp",
+    storeKey: "curso-devops",
+    customerMessage: "O que é rollback?",
+    ticketContext: { lastMessages: [] },
+    style: "atendimento_whatsapp",
   })
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  });
+    .then((result) => {
+      console.log(JSON.stringify(result, null, 2));
+    })
+    .catch((error) => {
+      console.error(error.message);
+      process.exit(1);
+    });
+}
+
+module.exports = { answerCustomer };
