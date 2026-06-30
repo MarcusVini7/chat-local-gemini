@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from app.config import settings
 from app.database import get_db
 from app.schemas import (
+    DocumentIntegrityResult,
     DocumentListItem,
     DocumentListResponse,
     DocumentReplaceResponse,
@@ -15,6 +16,7 @@ from app.schemas import (
     DocumentUploadResponse,
 )
 from app.security import require_internal_token
+from app.services.document_integrity_service import check_document_integrity
 from app.services.gemini_file_search import GeminiFileSearchService
 
 
@@ -27,6 +29,7 @@ def list_documents(
     storeKey: str | None = None,
     status: str | None = None,
     active: Literal["true", "false", "all"] = "true",
+    integrityStatus: str | None = None,
 ) -> DocumentListResponse:
     where: list[str] = []
     params: list[object] = []
@@ -42,6 +45,9 @@ def list_documents(
     if active != "all":
         where.append("d.active = ?")
         params.append(1 if active == "true" else 0)
+    if integrityStatus:
+        where.append("d.integrity_status = ?")
+        params.append(integrityStatus)
 
     sql = """
         SELECT
@@ -188,6 +194,24 @@ def replace_document(
         newDocument=_to_document_response(new_document),
     )
 
+
+@router.post("/documents/{document_id}/integrity-check", response_model=DocumentIntegrityResult)
+def document_integrity_check(document_id: int) -> DocumentIntegrityResult:
+    doc = check_document_integrity(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return DocumentIntegrityResult(
+        documentId=doc["id"],
+        originalFilename=doc["original_filename"],
+        localPath=doc.get("local_path"),
+        localFileExists=bool(doc.get("local_file_exists", 0)),
+        integrityStatus=doc.get("integrity_status", "unknown"),
+        integrityMessage=doc.get("integrity_message", ""),
+        integrityCheckedAt=doc.get("integrity_checked_at", ""),
+    )
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _create_and_index_document(
     store: dict,
@@ -341,6 +365,7 @@ def _to_document_response(
 
 
 def _to_document_list_item(row: dict) -> DocumentListItem:
+    lfe = row.get("local_file_exists")
     return DocumentListItem(
         id=row["id"],
         storeId=row["store_id"],
@@ -360,4 +385,8 @@ def _to_document_list_item(row: dict) -> DocumentListItem:
         indexedAt=row["indexed_at"],
         deletedAt=row["deleted_at"],
         replacedByDocumentId=row["replaced_by_document_id"],
+        localFileExists=bool(lfe) if lfe is not None else None,
+        integrityStatus=row.get("integrity_status"),
+        integrityCheckedAt=row.get("integrity_checked_at"),
+        integrityMessage=row.get("integrity_message"),
     )

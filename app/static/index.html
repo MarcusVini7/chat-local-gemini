@@ -131,7 +131,14 @@
                 </select>
               </label>
               <button class="button secondary" id="refreshDocuments" type="button">Atualizar</button>
+              <button class="button secondary" id="checkIntegrityBtn" type="button">Verificar integridade</button>
+              <button class="button ghost" id="rebuildPlanBtn" type="button">Plano de rebuild</button>
             </div>
+          </div>
+
+          <!-- Alerta de integridade -->
+          <div class="integrity-alert hidden" id="integrityAlert" role="alert">
+            ⚠️ Atenção: existem documentos ativos sem arquivo local. A IA ainda pode usar o índice remoto, mas a fonte não pode ser auditada localmente.
           </div>
 
           <div class="store-stats" id="storeStats">
@@ -151,6 +158,14 @@
               <span>Notas</span>
               <strong id="statNotes">—</strong>
             </div>
+            <div class="stat-item">
+              <span>OK (integridade)</span>
+              <strong id="statIntegrityOk">—</strong>
+            </div>
+            <div class="stat-item">
+              <span>Arquivo ausente</span>
+              <strong id="statIntegrityMissing">—</strong>
+            </div>
           </div>
 
           <form class="upload-bar" id="uploadForm">
@@ -158,6 +173,9 @@
             <button class="button primary" id="uploadButton" type="submit">Enviar documento</button>
             <span class="upload-status" id="uploadStatus"></span>
           </form>
+
+          <!-- Resultado do plano de rebuild -->
+          <div class="rebuild-plan hidden" id="rebuildPlanResult"></div>
 
           <div class="data-list" id="documentList" aria-live="polite"></div>
         </section>

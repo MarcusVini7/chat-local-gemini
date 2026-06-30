@@ -119,6 +119,11 @@ class DocumentListItem(BaseModel):
     indexedAt: str | None = None
     deletedAt: str | None = None
     replacedByDocumentId: int | None = None
+    # Campos de integridade
+    localFileExists: bool | None = None
+    integrityStatus: str | None = None
+    integrityCheckedAt: str | None = None
+    integrityMessage: str | None = None
 
 
 class DocumentListResponse(BaseModel):
@@ -137,6 +142,74 @@ class DocumentReplaceResponse(BaseModel):
     newDocument: DocumentUploadResponse
 
 
+# ── Integridade ──────────────────────────────────────────────────────────────
+
+class DocumentIntegrityResult(BaseModel):
+    documentId: int
+    originalFilename: str
+    localPath: str | None = None
+    localFileExists: bool
+    integrityStatus: str
+    integrityMessage: str
+    integrityCheckedAt: str
+
+
+class StoreIntegrityRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+
+
+class StoreIntegritySummary(BaseModel):
+    total: int
+    ok: int
+    missingLocalFile: int
+    inactive: int
+    remoteOnly: int
+    failed: int
+
+
+class StoreIntegrityItem(BaseModel):
+    id: int
+    originalFilename: str
+    active: bool
+    localFileExists: bool
+    integrityStatus: str
+    integrityMessage: str
+
+
+class StoreIntegrityResponse(BaseModel):
+    tenantId: str
+    storeKey: str
+    summary: StoreIntegritySummary
+    items: list[StoreIntegrityItem]
+
+
+# ── Rebuild plan ─────────────────────────────────────────────────────────────
+
+class RebuildPlanRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+
+
+class RebuildPlanItem(BaseModel):
+    id: int
+    originalFilename: str
+    localPath: str | None = None
+    integrityStatus: str | None = None
+
+
+class RebuildPlanResponse(BaseModel):
+    tenantId: str
+    storeKey: str
+    canRebuildSafely: bool
+    reason: str
+    activeAvailableDocuments: list[RebuildPlanItem]
+    activeMissingDocuments: list[RebuildPlanItem]
+    inactiveDocuments: list[RebuildPlanItem]
+
+
+# ── Stats ─────────────────────────────────────────────────────────────────────
+
 class StoreDocumentStats(BaseModel):
     total: int
     active: int
@@ -144,6 +217,13 @@ class StoreDocumentStats(BaseModel):
     indexed: int
     failed: int
     uploaded: int
+
+
+class StoreIntegrityStats(BaseModel):
+    ok: int
+    missingLocalFile: int
+    remoteOnly: int
+    unknown: int
 
 
 class StoreQueryStats(BaseModel):
@@ -164,6 +244,7 @@ class StoreStatsResponse(BaseModel):
     documents: StoreDocumentStats
     queries: StoreQueryStats
     notes: StoreNoteStats
+    integrity: StoreIntegrityStats | None = None
 
 
 class QueryListItem(BaseModel):

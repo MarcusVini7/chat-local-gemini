@@ -43,6 +43,12 @@ def main() -> int:
         ),
         (
             "GET",
+            "/documents?tenantId=marcus&storeKey=curso-devops&active=all&integrityStatus=missing_local_file",
+            None,
+            200,
+        ),
+        (
+            "GET",
             "/stores/stats?tenantId=marcus&storeKey=curso-devops",
             None,
             200,
@@ -53,13 +59,59 @@ def main() -> int:
 
     for method, path, payload, expected in checks:
         status, body = request(method, path, payload)
-        print(method, path, status, body)
+        print(method, path, status, body[:200] if len(body) > 200 else body)
         if status != expected:
+            print(f"FAIL: expected {expected}, got {status}")
             return 1
         if path == "/app" and "Chat Local Gemini" not in body:
             print("GET /app missing expected page title")
             return 1
 
+    # Verifica que /stores/stats inclui bloco integrity
+    status, body = request("GET", "/stores/stats?tenantId=marcus&storeKey=curso-devops")
+    if status == 200:
+        parsed = json.loads(body)
+        if "integrity" not in parsed:
+            print("FAIL: /stores/stats missing 'integrity' block")
+            return 1
+        print("GET /stores/stats integrity block: OK")
+
+    # POST /stores/integrity-check
+    status, body = request(
+        "POST",
+        "/stores/integrity-check",
+        {"tenantId": "marcus", "storeKey": "curso-devops"},
+    )
+    print("POST /stores/integrity-check", status, body[:200] if len(body) > 200 else body)
+    if status != 200:
+        print(f"FAIL: expected 200, got {status}")
+        return 1
+    parsed = json.loads(body)
+    if "summary" not in parsed or "items" not in parsed:
+        print("FAIL: /stores/integrity-check missing 'summary' or 'items'")
+        return 1
+    print("POST /stores/integrity-check: OK")
+
+    # POST /stores/rebuild-plan
+    status, body = request(
+        "POST",
+        "/stores/rebuild-plan",
+        {"tenantId": "marcus", "storeKey": "curso-devops"},
+    )
+    print("POST /stores/rebuild-plan", status, body[:200] if len(body) > 200 else body)
+    if status != 200:
+        print(f"FAIL: expected 200, got {status}")
+        return 1
+    parsed = json.loads(body)
+    required_keys = {"canRebuildSafely", "reason", "activeAvailableDocuments",
+                     "activeMissingDocuments", "inactiveDocuments"}
+    missing = required_keys - set(parsed.keys())
+    if missing:
+        print(f"FAIL: /stores/rebuild-plan missing keys: {missing}")
+        return 1
+    print("POST /stores/rebuild-plan: OK")
+
+    # POST /query com store inexistente
     status, body = request(
         "POST",
         "/query",

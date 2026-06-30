@@ -55,6 +55,10 @@ function cacheElements() {
     "generateSummary",
     "historyList",
     "historyPanel",
+    "integrityAlert",
+    "checkIntegrityBtn",
+    "rebuildPlanBtn",
+    "rebuildPlanResult",
     "lastApiCheck",
     "messageList",
     "newNote",
@@ -84,6 +88,8 @@ function cacheElements() {
     "storeTitle",
     "statActiveDocuments",
     "statIndexedDocuments",
+    "statIntegrityOk",
+    "statIntegrityMissing",
     "statNotes",
     "statQueries",
     "suggestedQuestions",
@@ -130,6 +136,8 @@ function bindEvents() {
   elements.uploadForm.addEventListener("submit", uploadDocument);
   elements.refreshDocuments.addEventListener("click", refreshDocumentData);
   elements.documentActiveFilter.addEventListener("change", loadDocuments);
+  elements.checkIntegrityBtn.addEventListener("click", checkStoreIntegrity);
+  elements.rebuildPlanBtn.addEventListener("click", showRebuildPlan);
   elements.refreshHistory.addEventListener("click", loadHistory);
   elements.confidenceFilter.addEventListener("change", loadHistory);
   elements.escalateFilter.addEventListener("change", loadHistory);
@@ -635,8 +643,13 @@ async function loadStoreStats() {
     elements.statIndexedDocuments.textContent = stats.documents.indexed;
     elements.statQueries.textContent = stats.queries.total;
     elements.statNotes.textContent = stats.notes.total;
+    if (stats.integrity) {
+      elements.statIntegrityOk.textContent = stats.integrity.ok;
+      elements.statIntegrityMissing.textContent = stats.integrity.missingLocalFile;
+    }
   } catch (error) {
-    ["statActiveDocuments", "statIndexedDocuments", "statQueries", "statNotes"].forEach(
+    ["statActiveDocuments", "statIndexedDocuments", "statQueries", "statNotes",
+     "statIntegrityOk", "statIntegrityMissing"].forEach(
       (id) => {
         elements[id].textContent = "—";
       },
@@ -658,11 +671,110 @@ async function loadDocuments() {
   });
   try {
     const data = await apiRequest(`/documents?${query}`);
-    renderDocuments(Array.isArray(data.items) ? data.items : []);
+    const docs = Array.isArray(data.items) ? data.items : [];
+    renderDocuments(docs);
+    // Atualiza alerta de integridade baseado nos dados carregados
+    const hasMissing = docs.some(
+      (d) => d.active && d.integrityStatus === "missing_local_file",
+    );
+    elements.integrityAlert.classList.toggle("hidden", !hasMissing);
   } catch (error) {
     setLoading(elements.documentList, error.message);
     showNotice(error.message);
   }
+}
+
+async function checkStoreIntegrity() {
+  if (!state.selectedStore) {
+    return;
+  }
+  setButtonBusy(elements.checkIntegrityBtn, true, "Verificando...");
+  clearNotice();
+  try {
+    await apiRequest("/stores/integrity-check", {
+      method: "POST",
+      body: JSON.stringify(selectedStorePayload()),
+    });
+    showToast("Integridade verificada e atualizada.", "success");
+    await refreshDocumentData();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.checkIntegrityBtn, false, "Verificar integridade");
+  }
+}
+
+async function showRebuildPlan() {
+  if (!state.selectedStore) {
+    return;
+  }
+  setButtonBusy(elements.rebuildPlanBtn, true, "Analisando...");
+  elements.rebuildPlanResult.classList.add("hidden");
+  elements.rebuildPlanResult.replaceChildren();
+  clearNotice();
+  try {
+    const plan = await apiRequest("/stores/rebuild-plan", {
+      method: "POST",
+      body: JSON.stringify(selectedStorePayload()),
+    });
+    renderRebuildPlan(plan);
+    elements.rebuildPlanResult.classList.remove("hidden");
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.rebuildPlanBtn, false, "Plano de rebuild");
+  }
+}
+
+function renderRebuildPlan(plan) {
+  const container = elements.rebuildPlanResult;
+  container.replaceChildren();
+
+  const header = createElement("div", "rebuild-header");
+  const statusClass = plan.canRebuildSafely ? "ok" : "missing_local_file";
+  const statusText = plan.canRebuildSafely
+    ? "✅ Pode reconstruir com segurança"
+    : "⚠️ Não é seguro reconstruir agora";
+  header.append(
+    createElement("strong", `integrity-badge ${statusClass}`, statusText),
+    createElement("span", "rebuild-reason", `Motivo: ${plan.reason}`),
+  );
+  container.append(header);
+
+  if (plan.activeAvailableDocuments.length) {
+    const section = createElement("div", "rebuild-section");
+    section.append(createElement("h4", "", `Ativos disponíveis (${plan.activeAvailableDocuments.length})`));
+    plan.activeAvailableDocuments.forEach((doc) => {
+      section.append(createElement("div", "rebuild-item ok", `✓ ${doc.originalFilename}`));
+    });
+    container.append(section);
+  }
+
+  if (plan.activeMissingDocuments.length) {
+    const section = createElement("div", "rebuild-section");
+    section.append(createElement("h4", "", `Ativos com arquivo ausente (${plan.activeMissingDocuments.length})`));
+    plan.activeMissingDocuments.forEach((doc) => {
+      section.append(createElement("div", "rebuild-item missing", `✗ ${doc.originalFilename}`));
+    });
+    container.append(section);
+  }
+
+  if (plan.inactiveDocuments.length) {
+    const section = createElement("div", "rebuild-section");
+    section.append(createElement("h4", "", `Inativos (${plan.inactiveDocuments.length})`));
+    plan.inactiveDocuments.forEach((doc) => {
+      section.append(createElement("div", "rebuild-item inactive", `— ${doc.originalFilename}`));
+    });
+    container.append(section);
+  }
+
+  const closeBtn = createElement("button", "button ghost", "Fechar plano");
+  closeBtn.type = "button";
+  closeBtn.addEventListener("click", () => {
+    container.classList.add("hidden");
+    container.replaceChildren();
+  });
+  container.append(closeBtn);
 }
 
 function renderDocuments(documents) {
@@ -687,6 +799,15 @@ function renderDocuments(documents) {
     if (documentItem.indexedAt) {
       meta.append(createElement("span", "", `Indexado em ${formatDate(documentItem.indexedAt)}`));
     }
+    // Integridade no meta
+    if (documentItem.integrityStatus && documentItem.integrityStatus !== "unknown") {
+      const intMsg = documentItem.integrityMessage
+        ? ` — ${documentItem.integrityMessage}`
+        : "";
+      meta.append(
+        createElement("span", "", `Integridade verificada em ${formatDate(documentItem.integrityCheckedAt)}${intMsg}`),
+      );
+    }
     info.append(meta);
     if (documentItem.notes) {
       info.append(createElement("p", "document-notes-preview", documentItem.notes));
@@ -697,6 +818,15 @@ function renderDocuments(documents) {
       createBadge(documentItem.active ? "Ativo" : "Inativo", documentItem.active ? "indexed" : "failed"),
       createBadge(translateStatus(documentItem.status), documentItem.status),
     );
+    // Badge de integridade
+    if (documentItem.integrityStatus) {
+      badges.append(
+        createBadge(
+          translateIntegrityStatus(documentItem.integrityStatus),
+          `integrity-badge ${documentItem.integrityStatus}`,
+        ),
+      );
+    }
     header.append(info, badges);
     row.append(header);
 
@@ -707,6 +837,13 @@ function renderDocuments(documents) {
     detailsButton.addEventListener("click", () => {
       toggleDocumentDetails(documentItem, details, detailsButton);
     });
+
+    // Botão verificar integridade individual
+    const integrityButton = createElement("button", "button ghost", "Verificar este documento");
+    integrityButton.type = "button";
+    integrityButton.addEventListener("click", () =>
+      checkSingleDocumentIntegrity(documentItem.id, integrityButton),
+    );
 
     const activeButton = createElement(
       "button",
@@ -720,10 +857,28 @@ function renderDocuments(documents) {
     replaceButton.type = "button";
     replaceButton.addEventListener("click", () => chooseReplacementFile(documentItem, replaceButton));
 
-    actions.append(detailsButton, activeButton, replaceButton);
+    actions.append(detailsButton, integrityButton, activeButton, replaceButton);
     row.append(actions, details);
     elements.documentList.append(row);
   });
+}
+
+async function checkSingleDocumentIntegrity(documentId, button) {
+  setButtonBusy(button, true, "Verificando...");
+  try {
+    const result = await apiRequest(`/documents/${documentId}/integrity-check`, {
+      method: "POST",
+    });
+    showToast(
+      `${result.originalFilename}: ${translateIntegrityStatus(result.integrityStatus)}`,
+      result.integrityStatus === "ok" ? "success" : "error",
+    );
+    await refreshDocumentData();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(button, false, "Verificar este documento");
+  }
 }
 
 async function toggleDocumentDetails(documentItem, container, button) {
@@ -758,6 +913,10 @@ function renderDocumentDetails(documentItem, container) {
     `Indexado: ${formatDate(documentItem.indexedAt)}`,
     `Removido: ${documentItem.deletedAt ? formatDate(documentItem.deletedAt) : "Não"}`,
     `Substituído por: ${documentItem.replacedByDocumentId || "Não"}`,
+    `Arquivo local existe: ${documentItem.localFileExists === true ? "Sim" : documentItem.localFileExists === false ? "Não" : "Não verificado"}`,
+    `Status de integridade: ${translateIntegrityStatus(documentItem.integrityStatus || "unknown")}`,
+    `Integridade verificada em: ${formatDate(documentItem.integrityCheckedAt)}`,
+    `Mensagem: ${documentItem.integrityMessage || "—"}`,
   ];
   values.forEach((value) => grid.append(createElement("span", "", value)));
 
@@ -1452,4 +1611,15 @@ function translateStatus(value) {
     uploaded: "Enviado",
     failed: "Erro",
   }[value] || value;
+}
+
+function translateIntegrityStatus(value) {
+  return {
+    ok: "OK",
+    missing_local_file: "Arquivo ausente",
+    inactive: "Inativo",
+    remote_only: "Apenas remoto",
+    unknown: "Não verificado",
+    failed: "Falha",
+  }[value] || value || "Não verificado";
 }

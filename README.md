@@ -328,6 +328,67 @@ Tabelas:
 - `queries`
 - `notes`
 
+## Documentos e fontes
+
+Um documento pode existir no índice remoto Gemini mesmo que o arquivo local
+não esteja mais presente no disco. Isso ocorre porque:
+
+- A exclusão lógica local (`active=0`) **não remove** o documento do índice
+  remoto Gemini.
+- O arquivo físico pode ter sido deletado manualmente fora do sistema.
+
+A integridade local serve para **auditoria**: confirmar que cada fonte citada
+pela IA ainda pode ser consultada localmente.
+
+Se houver documentos ativos com arquivo ausente, a recomendação é:
+1. Reenviar o arquivo via upload (gerará novo documento);
+2. Ou usar "Substituir documento" na UI;
+3. Ou criar uma store nova limpa futuramente com apenas os documentos disponíveis.
+
+## Integridade e rebuild de store
+
+Valores possíveis de `integrityStatus`:
+
+| Status | Significado |
+|--------|-------------|
+| `ok` | Arquivo local encontrado |
+| `missing_local_file` | Ativo, mas arquivo ausente no disco |
+| `inactive` | Documento inativo |
+| `remote_only` | Sem local_path, mas com índice Gemini |
+| `unknown` | Ainda não verificado |
+| `failed` | Sem local_path e sem índice Gemini |
+
+### Exemplos curl
+
+```bash
+TOKEN="$(grep '^INTERNAL_API_TOKEN=' .env | cut -d= -f2-)"
+
+# Verificar integridade de todos os documentos da store
+curl -sS -X POST http://127.0.0.1:8765/stores/integrity-check \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Token: $TOKEN" \
+  -d '{"tenantId":"marcus","storeKey":"curso-devops"}' | python -m json.tool
+
+# Obter plano de rebuild (somente diagnóstico, não reconstrói)
+curl -sS -X POST http://127.0.0.1:8765/stores/rebuild-plan \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Token: $TOKEN" \
+  -d '{"tenantId":"marcus","storeKey":"curso-devops"}' | python -m json.tool
+
+# Verificar documento individual
+curl -sS -X POST http://127.0.0.1:8765/documents/1/integrity-check \
+  -H "X-Internal-Token: $TOKEN" | python -m json.tool
+
+# Listar documentos com arquivo ausente
+curl -sS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops&active=all&integrityStatus=missing_local_file" \
+  -H "X-Internal-Token: $TOKEN" | python -m json.tool
+```
+
+O endpoint `/stores/rebuild-plan` **não executa** nenhuma operação destrutiva.
+Ele apenas analisa quais documentos estão disponíveis e retorna se a store
+pode ser reconstruída com segurança (`canRebuildSafely: true` somente quando
+todos os documentos ativos têm arquivo local presente).
+
 ## Observações práticas
 
 - Upload duplicado é detectado por SHA256 dentro da mesma store.

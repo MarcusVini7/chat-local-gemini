@@ -74,6 +74,10 @@ DOCUMENT_COLUMN_MIGRATIONS = {
     "deleted_at": "TEXT",
     "replaced_by_document_id": "INTEGER",
     "notes": "TEXT",
+    "local_file_exists": "INTEGER DEFAULT 1",
+    "integrity_status": "TEXT DEFAULT 'unknown'",
+    "integrity_checked_at": "TEXT",
+    "integrity_message": "TEXT",
 }
 
 
