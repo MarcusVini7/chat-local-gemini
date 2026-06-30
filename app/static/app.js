@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   tenantId: "selectedTenantId",
   storeKey: "selectedStoreKey",
   chatMode: "chatLocalGeminiChatMode",
+  chatPrefix: "chatLocalGeminiMessages",
 };
 
 const state = {
@@ -20,7 +21,9 @@ document.addEventListener("DOMContentLoaded", () => {
   cacheElements();
   bindEvents();
   elements.tokenInput.value = localStorage.getItem(STORAGE_KEYS.token) || "";
+  updateTokenStatus(elements.tokenInput.value ? "configured" : "empty");
   setChatMode(state.chatMode);
+  checkApiStatus();
   loadStores();
 });
 
@@ -29,6 +32,8 @@ function cacheElements() {
     "apiStatus",
     "cancelStoreForm",
     "channelSelect",
+    "checkApi",
+    "clearChat",
     "chatEmpty",
     "chatForm",
     "chatMode",
@@ -44,6 +49,7 @@ function cacheElements() {
     "fileInput",
     "historyList",
     "historyPanel",
+    "lastApiCheck",
     "messageList",
     "newStoreForm",
     "notice",
@@ -59,9 +65,12 @@ function cacheElements() {
     "storeList",
     "storeTenant",
     "storeTitle",
+    "testToken",
     "tenantIdInput",
     "toggleStoreForm",
     "tokenInput",
+    "tokenStatus",
+    "toastRegion",
     "uploadButton",
     "uploadForm",
     "uploadStatus",
@@ -76,6 +85,9 @@ function cacheElements() {
 function bindEvents() {
   elements.saveToken.addEventListener("click", saveToken);
   elements.clearToken.addEventListener("click", clearToken);
+  elements.testToken.addEventListener("click", testToken);
+  elements.checkApi.addEventListener("click", () => checkApiStatus(true));
+  elements.clearChat.addEventListener("click", clearChat);
   elements.refreshStores.addEventListener("click", loadStores);
   elements.toggleStoreForm.addEventListener("click", () => {
     elements.newStoreForm.classList.toggle("hidden");
@@ -157,11 +169,41 @@ function setApiStatus(online) {
   elements.apiStatus.textContent = online ? "API online" : "API indisponível";
   elements.apiStatus.classList.toggle("online", online);
   elements.apiStatus.classList.toggle("offline", !online);
+  elements.lastApiCheck.textContent = `Verificado às ${new Intl.DateTimeFormat("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date())}`;
+}
+
+async function checkApiStatus(showResult = false) {
+  setButtonBusy(elements.checkApi, true, "Verificando...");
+  try {
+    const response = await fetch("/health", { cache: "no-store" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    setApiStatus(true);
+    if (showResult) {
+      showToast("API local online.", "success");
+    }
+  } catch (error) {
+    setApiStatus(false);
+    if (showResult) {
+      showToast(
+        "API local indisponível. Verifique se o serviço está rodando com uvicorn em 127.0.0.1:8765.",
+        "error",
+      );
+    }
+  } finally {
+    setButtonBusy(elements.checkApi, false, "Verificar API");
+  }
 }
 
 function showNotice(message) {
   elements.notice.textContent = message;
   elements.notice.classList.remove("hidden");
+  showToast(message, "error");
 }
 
 function clearNotice() {
@@ -173,8 +215,12 @@ function saveToken() {
   const token = elements.tokenInput.value.trim();
   if (token) {
     localStorage.setItem(STORAGE_KEYS.token, token);
+    updateTokenStatus("configured");
+    showToast("Token configurado.", "success");
   } else {
     localStorage.removeItem(STORAGE_KEYS.token);
+    updateTokenStatus("empty");
+    showToast("Token removido.");
   }
   elements.tokenInput.value = token;
   clearNotice();
@@ -184,8 +230,41 @@ function saveToken() {
 function clearToken() {
   localStorage.removeItem(STORAGE_KEYS.token);
   elements.tokenInput.value = "";
+  updateTokenStatus("empty");
   clearNotice();
+  showToast("Token removido.");
   loadStores();
+}
+
+async function testToken() {
+  setButtonBusy(elements.testToken, true, "Testando...");
+  clearNotice();
+  try {
+    await apiRequest("/stores");
+    updateTokenStatus("valid");
+    showToast("Token válido.", "success");
+  } catch (error) {
+    if (error.message === "Token interno ausente ou inválido.") {
+      updateTokenStatus("invalid");
+      showToast("Token inválido ou ausente.", "error");
+    } else {
+      showNotice(error.message);
+    }
+  } finally {
+    setButtonBusy(elements.testToken, false, "Testar token");
+  }
+}
+
+function updateTokenStatus(status) {
+  const labels = {
+    configured: "Token configurado",
+    empty: "Token não configurado",
+    invalid: "Token inválido ou ausente",
+    valid: "Token válido",
+  };
+  elements.tokenStatus.textContent = labels[status];
+  elements.tokenStatus.classList.toggle("valid", status === "valid");
+  elements.tokenStatus.classList.toggle("invalid", status === "invalid");
 }
 
 async function loadStores() {
@@ -197,6 +276,9 @@ async function loadStores() {
     renderStores();
     restoreSelectedStore();
   } catch (error) {
+    if (error.message === "Token interno ausente ou inválido.") {
+      updateTokenStatus("invalid");
+    }
     state.stores = [];
     renderStores();
     selectStore(null);
@@ -256,6 +338,7 @@ function selectStore(store) {
     elements.storeTenant.textContent = "Nenhuma base selecionada";
     elements.emptyState.classList.remove("hidden");
     hidePanels();
+    renderStoredChat();
     return;
   }
 
@@ -265,6 +348,7 @@ function selectStore(store) {
   elements.storeTenant.textContent = `${store.tenantId} / ${store.storeKey}`;
   elements.emptyState.classList.add("hidden");
   elements.sidebar.classList.remove("open");
+  renderStoredChat();
   switchTab(state.activeTab);
 }
 
@@ -360,7 +444,7 @@ async function sendQuestion(event) {
   clearNotice();
   appendMessage("user", { answer: question });
   elements.questionInput.value = "";
-  setButtonBusy(elements.sendQuestion, true, "Consultando...");
+  setButtonBusy(elements.sendQuestion, true, "Gerando...");
   const loadingMessage = appendLoadingMessage();
   const store = state.selectedStore;
   let path;
@@ -413,8 +497,8 @@ function appendLoadingMessage() {
   const message = createElement("div", "message assistant");
   const content = createElement("div", "message-content");
   content.append(
-    createElement("div", "message-label", "Gemini"),
-    createElement("p", "message-text loading", "Consultando fontes..."),
+    createElement("div", "message-label", "Resposta"),
+    createElement("p", "message-text loading", "Gerando resposta..."),
   );
   message.append(content);
   elements.messageList.append(message);
@@ -422,12 +506,20 @@ function appendLoadingMessage() {
   return message;
 }
 
-function appendMessage(role, result) {
+function appendMessage(role, result, persist = true) {
   elements.chatEmpty.classList.add("hidden");
   const message = createElement("article", `message ${role}`);
   const content = createElement("div", "message-content");
   if (role === "assistant") {
-    content.append(createElement("div", "message-label", result.isError ? "Erro" : "Resposta"));
+    const heading = createElement("div", "message-heading");
+    heading.append(createElement("div", "message-label", result.isError ? "Erro" : "Resposta"));
+    if (!result.isError && result.answer) {
+      const copyButton = createElement("button", "button ghost copy-answer", "Copiar resposta");
+      copyButton.type = "button";
+      copyButton.addEventListener("click", () => copyAnswer(copyButton, result.answer));
+      heading.append(copyButton);
+    }
+    content.append(heading);
   }
   content.append(createElement("p", "message-text", result.answer || ""));
 
@@ -448,15 +540,21 @@ function appendMessage(role, result) {
 
   message.append(content);
   elements.messageList.append(message);
+  if (persist) {
+    persistChatMessage(role, result);
+  }
   scrollMessages();
   return message;
 }
 
 function renderCitations(citations) {
-  const container = createElement("div", "citations");
-  if (!Array.isArray(citations)) {
-    return container;
+  if (!Array.isArray(citations) || !citations.length) {
+    return createElement("div", "no-citations", "Nenhuma citação retornada.");
   }
+  const details = createElement("details", "citations-details");
+  details.open = true;
+  details.append(createElement("summary", "", `Citações (${citations.length})`));
+  const container = createElement("div", "citations");
   citations.forEach((citation) => {
     const item = createElement("div", "citation");
     item.append(createElement("strong", "", `Fonte: ${citation.source || "Não informada"}`));
@@ -468,7 +566,8 @@ function renderCitations(citations) {
     }
     container.append(item);
   });
-  return container;
+  details.append(container);
+  return details;
 }
 
 async function loadDocuments() {
@@ -523,8 +622,9 @@ async function uploadDocument(event) {
   formData.append("tenantId", state.selectedStore.tenantId);
   formData.append("storeKey", state.selectedStore.storeKey);
   formData.append("file", elements.fileInput.files[0]);
-  elements.uploadStatus.textContent = "Enviando...";
-  setButtonBusy(elements.uploadButton, true, "Enviando...");
+  elements.uploadStatus.textContent = "Enviando e indexando...";
+  elements.fileInput.disabled = true;
+  setButtonBusy(elements.uploadButton, true, "Processando...");
   clearNotice();
 
   try {
@@ -539,6 +639,7 @@ async function uploadDocument(event) {
     elements.uploadStatus.textContent = "Erro";
     showNotice(error.message);
   } finally {
+    elements.fileInput.disabled = false;
     setButtonBusy(elements.uploadButton, false, "Enviar documento");
   }
 }
@@ -579,7 +680,17 @@ function renderHistory(items) {
   items.forEach((item) => {
     const row = createElement("article", "history-item");
     row.append(createElement("div", "history-question", item.question));
-    row.append(createElement("p", "history-answer", item.answer));
+    const answer = createElement("p", "history-answer", item.answer);
+    row.append(answer);
+    if (String(item.answer || "").length > 240) {
+      const expandButton = createElement("button", "button ghost history-expand", "Ver mais");
+      expandButton.type = "button";
+      expandButton.addEventListener("click", () => {
+        const expanded = answer.classList.toggle("expanded");
+        expandButton.textContent = expanded ? "Ver menos" : "Ver mais";
+      });
+      row.append(expandButton);
+    }
     const meta = createElement("div", "history-meta");
     meta.append(
       createBadge(`Confiança: ${translateConfidence(item.confidence)}`, item.confidence),
@@ -616,6 +727,116 @@ function setLoading(container, text) {
 function setButtonBusy(button, busy, label) {
   button.disabled = busy;
   button.textContent = label;
+}
+
+function chatStorageKey() {
+  if (!state.selectedStore) {
+    return null;
+  }
+  return [
+    STORAGE_KEYS.chatPrefix,
+    state.selectedStore.tenantId,
+    state.selectedStore.storeKey,
+  ].join(":");
+}
+
+function readStoredMessages() {
+  const key = chatStorageKey();
+  if (!key) {
+    return [];
+  }
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch (error) {
+    localStorage.removeItem(key);
+    return [];
+  }
+}
+
+function persistChatMessage(role, result) {
+  const key = chatStorageKey();
+  if (!key) {
+    return;
+  }
+  const messages = readStoredMessages();
+  messages.push({
+    role,
+    result: {
+      answer: String(result.answer || ""),
+      citations: Array.isArray(result.citations) ? result.citations : [],
+      confidence: result.confidence || null,
+      reason: result.reason || null,
+      shouldEscalate: Boolean(result.shouldEscalate),
+      isError: Boolean(result.isError),
+    },
+  });
+  try {
+    localStorage.setItem(key, JSON.stringify(messages.slice(-50)));
+  } catch (error) {
+    showToast("Não foi possível salvar o chat local.", "error");
+  }
+}
+
+function renderStoredChat() {
+  elements.messageList.replaceChildren(elements.chatEmpty);
+  elements.chatEmpty.classList.remove("hidden");
+  if (!state.selectedStore) {
+    return;
+  }
+  readStoredMessages().forEach((message) => {
+    if (message && ["user", "assistant"].includes(message.role) && message.result) {
+      appendMessage(message.role, message.result, false);
+    }
+  });
+}
+
+function clearChat() {
+  const key = chatStorageKey();
+  if (!key) {
+    showToast("Nenhuma base selecionada.", "error");
+    return;
+  }
+  localStorage.removeItem(key);
+  renderStoredChat();
+  showToast("Chat local limpo.", "success");
+}
+
+async function copyAnswer(button, answer) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(answer);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = answer;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.append(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+    }
+    button.textContent = "Copiado";
+    showToast("Resposta copiada.", "success");
+    window.setTimeout(() => {
+      button.textContent = "Copiar resposta";
+    }, 1600);
+  } catch (error) {
+    showToast("Não foi possível copiar a resposta.", "error");
+  }
+}
+
+function showToast(message, type = "") {
+  const toast = createElement("div", `toast ${type}`.trim());
+  toast.setAttribute("role", type === "error" ? "alert" : "status");
+  toast.append(createElement("span", "", message));
+  const closeButton = createElement("button", "icon-button", "×");
+  closeButton.type = "button";
+  closeButton.setAttribute("aria-label", "Fechar notificação");
+  closeButton.addEventListener("click", () => toast.remove());
+  toast.append(closeButton);
+  elements.toastRegion.append(toast);
+  window.setTimeout(() => toast.remove(), 5000);
 }
 
 function scrollMessages() {

@@ -45,9 +45,12 @@ http://127.0.0.1:8765/app
 ```
 
 A interface permite selecionar e criar bases, enviar documentos, consultar o
-chat e revisar o histórico. Se `INTERNAL_API_TOKEN` estiver configurado no
-`.env`, informe o mesmo token no campo da interface. Ele fica somente no
-`localStorage` do navegador. Com o token vazio, a interface funciona sem token.
+chat e revisar o histórico. O topo mostra o estado da API, e a sidebar permite
+salvar e testar o token interno. A store selecionada e as mensagens locais de
+cada store ficam no `localStorage` do navegador.
+
+Se `INTERNAL_API_TOKEN` estiver configurado no `.env`, informe o mesmo token no
+campo da interface. Com o token vazio, a interface funciona sem token.
 
 Esta autenticação e o armazenamento no navegador são exclusivos do MVP local.
 Mantenha o Uvicorn em `127.0.0.1` e não exponha a interface na internet.

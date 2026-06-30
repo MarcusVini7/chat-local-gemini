@@ -23,8 +23,10 @@
         <section class="sidebar-section token-section">
           <label for="tokenInput">Token interno</label>
           <input id="tokenInput" type="password" autocomplete="off" placeholder="X-Internal-Token">
+          <span class="token-status" id="tokenStatus">Token não configurado</span>
           <div class="button-row">
             <button class="button secondary" id="saveToken" type="button">Salvar token</button>
+            <button class="button secondary" id="testToken" type="button">Testar token</button>
             <button class="button ghost" id="clearToken" type="button">Limpar</button>
           </div>
         </section>
@@ -60,7 +62,13 @@
             <span id="storeTenant">Nenhuma base selecionada</span>
             <h1 id="storeTitle">Chat Local Gemini</h1>
           </div>
-          <span class="api-status" id="apiStatus">API local</span>
+          <div class="api-controls">
+            <div class="api-status-block">
+              <span class="api-status" id="apiStatus">API não verificada</span>
+              <span class="last-check" id="lastApiCheck">Sem verificação</span>
+            </div>
+            <button class="button secondary" id="checkApi" type="button">Verificar API</button>
+          </div>
         </header>
 
         <nav class="tabs" aria-label="Conteúdo da base">
@@ -73,7 +81,7 @@
 
         <section class="empty-state" id="emptyState">
           <div class="empty-mark" aria-hidden="true">CL</div>
-          <h2>Crie ou selecione uma base para começar.</h2>
+          <h2>Selecione uma base na lateral ou crie uma nova para começar.</h2>
         </section>
 
         <section class="panel chat-panel hidden" id="chatPanel" data-panel="chat">
@@ -82,12 +90,15 @@
               <button class="active" type="button" data-mode="query">Consulta técnica</button>
               <button type="button" data-mode="customer">Atendimento</button>
             </div>
-            <div class="customer-options hidden" id="customerOptions">
-              <label for="channelSelect">Canal</label>
-              <select id="channelSelect">
-                <option value="whatsapp">WhatsApp</option>
-                <option value="email">E-mail</option>
-              </select>
+            <div class="chat-actions">
+              <div class="customer-options hidden" id="customerOptions">
+                <label for="channelSelect">Canal</label>
+                <select id="channelSelect">
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="email">E-mail</option>
+                </select>
+              </div>
+              <button class="button ghost" id="clearChat" type="button">Limpar chat local</button>
             </div>
           </div>
 
@@ -145,7 +156,7 @@
                   <option value="false">Não</option>
                 </select>
               </label>
-              <button class="button secondary" id="refreshHistory" type="button">Atualizar</button>
+              <button class="button secondary" id="refreshHistory" type="button">Atualizar histórico</button>
             </div>
           </div>
 
@@ -153,6 +164,8 @@
         </section>
       </main>
     </div>
+
+    <div class="toast-region" id="toastRegion" aria-live="polite" aria-atomic="true"></div>
 
     <script src="/static/app.js" defer></script>
   </body>
