@@ -20,6 +20,16 @@ class StoreOut(BaseModel):
     geminiStoreName: str
 
 
+class StoreListItem(StoreOut):
+    createdAt: str
+    updatedAt: str
+
+
+class StoreListResponse(BaseModel):
+    items: list[StoreListItem]
+    count: int
+
+
 class Citation(BaseModel):
     source: str
     page: int | None = None
@@ -64,3 +74,44 @@ class DocumentUploadResponse(BaseModel):
     status: str
     geminiDocumentName: str | None = None
     duplicate: bool = False
+
+
+class DocumentListItem(BaseModel):
+    id: int
+    storeId: int
+    tenantId: str
+    storeKey: str
+    displayName: str
+    originalFilename: str
+    sha256: str
+    mimeType: str | None = None
+    sizeBytes: int
+    geminiDocumentName: str | None = None
+    status: str
+    errorMessage: str | None = None
+    createdAt: str
+    indexedAt: str | None = None
+
+
+class DocumentListResponse(BaseModel):
+    items: list[DocumentListItem]
+    count: int
+
+
+class QueryListItem(BaseModel):
+    id: int
+    storeId: int
+    tenantId: str
+    storeKey: str
+    channel: str | None = None
+    question: str
+    answer: str
+    confidence: str
+    shouldEscalate: bool
+    citations: list[Citation]
+    createdAt: str
+
+
+class QueryListResponse(BaseModel):
+    items: list[QueryListItem]
+    count: int

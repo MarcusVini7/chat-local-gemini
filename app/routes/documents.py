@@ -6,11 +6,49 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.config import settings
 from app.database import get_db
-from app.schemas import DocumentUploadResponse
+from app.schemas import DocumentListItem, DocumentListResponse, DocumentUploadResponse
 from app.services.gemini_file_search import GeminiFileSearchService
 
 
 router = APIRouter()
+
+
+@router.get("/documents", response_model=DocumentListResponse)
+def list_documents(
+    tenantId: str | None = None,
+    storeKey: str | None = None,
+    status: str | None = None,
+) -> DocumentListResponse:
+    where: list[str] = []
+    params: list[str] = []
+    if tenantId:
+        where.append("s.tenant_id = ?")
+        params.append(tenantId)
+    if storeKey:
+        where.append("s.store_key = ?")
+        params.append(storeKey)
+    if status:
+        where.append("d.status = ?")
+        params.append(status)
+
+    sql = """
+        SELECT
+            d.*,
+            s.tenant_id,
+            s.store_key,
+            s.display_name
+        FROM documents d
+        JOIN stores s ON s.id = d.store_id
+    """
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY d.created_at DESC"
+
+    with get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
+    items = [_to_document_list_item(row) for row in rows]
+    return DocumentListResponse(items=items, count=len(items))
 
 
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
@@ -132,4 +170,23 @@ def _to_document_response(row: dict, duplicate: bool = False) -> DocumentUploadR
         status=row["status"],
         geminiDocumentName=row["gemini_document_name"],
         duplicate=duplicate,
+    )
+
+
+def _to_document_list_item(row: dict) -> DocumentListItem:
+    return DocumentListItem(
+        id=row["id"],
+        storeId=row["store_id"],
+        tenantId=row["tenant_id"],
+        storeKey=row["store_key"],
+        displayName=row["display_name"],
+        originalFilename=row["original_filename"],
+        sha256=row["sha256"],
+        mimeType=row["mime_type"],
+        sizeBytes=row["size_bytes"],
+        geminiDocumentName=row["gemini_document_name"],
+        status=row["status"],
+        errorMessage=row["error_message"],
+        createdAt=row["created_at"],
+        indexedAt=row["indexed_at"],
     )

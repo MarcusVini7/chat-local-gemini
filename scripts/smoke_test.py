@@ -22,10 +22,18 @@ def request(method: str, path: str, payload: dict | None = None) -> tuple[int, s
 
 
 def main() -> int:
-    status, body = request("GET", "/health")
-    print("GET /health", status, body)
-    if status != 200:
-        return 1
+    checks = [
+        ("GET", "/health", None, 200),
+        ("GET", "/stores", None, 200),
+        ("GET", "/documents", None, 200),
+        ("GET", "/queries", None, 200),
+    ]
+
+    for method, path, payload, expected in checks:
+        status, body = request(method, path, payload)
+        print(method, path, status, body)
+        if status != expected:
+            return 1
 
     status, body = request(
         "POST",

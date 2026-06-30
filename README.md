@@ -41,6 +41,14 @@ curl -X POST http://127.0.0.1:8765/stores \
   }'
 ```
 
+### Listar stores
+
+```bash
+curl -fsS "http://127.0.0.1:8765/stores" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/stores?tenantId=marcus" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/stores?tenantId=marcus&storeKey=curso-devops" | python -m json.tool
+```
+
 ### Upload de documento
 
 ```bash
@@ -48,6 +56,15 @@ curl -X POST http://127.0.0.1:8765/documents/upload \
   -F tenantId=ihx \
   -F storeKey=access-pro \
   -F file=@/caminho/para/Cadastro-de-Colaborador-Access-Pro.pdf
+```
+
+### Listar documentos
+
+```bash
+curl -fsS "http://127.0.0.1:8765/documents" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops&status=indexed" | python -m json.tool
 ```
 
 ### Query interna
@@ -60,6 +77,16 @@ curl -X POST http://127.0.0.1:8765/query \
     "storeKey": "access-pro",
     "question": "Como cadastro um colaborador?"
   }'
+```
+
+### Listar histórico de queries
+
+```bash
+curl -fsS "http://127.0.0.1:8765/queries" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?tenantId=marcus&storeKey=curso-devops" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?shouldEscalate=true" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?confidence=low" | python -m json.tool
+curl -fsS "http://127.0.0.1:8765/queries?limit=20" | python -m json.tool
 ```
 
 ### Atendimento WhatsApp/e-mail

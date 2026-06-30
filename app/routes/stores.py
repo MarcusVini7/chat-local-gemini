@@ -1,11 +1,37 @@
 from fastapi import APIRouter, HTTPException
 
 from app.database import get_db
-from app.schemas import StoreCreate, StoreOut
+from app.schemas import StoreCreate, StoreListItem, StoreListResponse, StoreOut
 from app.services.gemini_file_search import GeminiFileSearchService
 
 
 router = APIRouter()
+
+
+@router.get("/stores", response_model=StoreListResponse)
+def list_stores(
+    tenantId: str | None = None,
+    storeKey: str | None = None,
+) -> StoreListResponse:
+    where: list[str] = []
+    params: list[str] = []
+    if tenantId:
+        where.append("tenant_id = ?")
+        params.append(tenantId)
+    if storeKey:
+        where.append("store_key = ?")
+        params.append(storeKey)
+
+    sql = "SELECT * FROM stores"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY created_at DESC"
+
+    with get_db() as conn:
+        rows = conn.execute(sql, params).fetchall()
+
+    items = [_to_store_list_item(row) for row in rows]
+    return StoreListResponse(items=items, count=len(items))
 
 
 @router.post("/stores", response_model=StoreOut)
@@ -46,4 +72,16 @@ def _to_store_out(row: dict) -> StoreOut:
         storeKey=row["store_key"],
         displayName=row["display_name"],
         geminiStoreName=row["gemini_store_name"],
+    )
+
+
+def _to_store_list_item(row: dict) -> StoreListItem:
+    return StoreListItem(
+        id=row["id"],
+        tenantId=row["tenant_id"],
+        storeKey=row["store_key"],
+        displayName=row["display_name"],
+        geminiStoreName=row["gemini_store_name"],
+        createdAt=row["created_at"],
+        updatedAt=row["updated_at"],
     )
