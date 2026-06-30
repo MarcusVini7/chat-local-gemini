@@ -1,0 +1,14 @@
+[Unit]
+Description=Chat Local Gemini FastAPI Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/marcus/chat-local-gemini
+EnvironmentFile=/home/marcus/chat-local-gemini/.env
+ExecStart=/home/marcus/chat-local-gemini/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -55,6 +55,62 @@ campo da interface. Com o token vazio, a interface funciona sem token.
 Esta autenticação e o armazenamento no navegador são exclusivos do MVP local.
 Mantenha o Uvicorn em `127.0.0.1` e não exponha a interface na internet.
 
+## Rodando como serviço local no Debian
+
+### systemd de usuário
+
+Instale a unit sem usar root:
+
+```bash
+cd ~/chat-local-gemini
+mkdir -p ~/.config/systemd/user
+cp deploy/systemd/chat-local-gemini.service ~/.config/systemd/user/
+
+systemctl --user daemon-reload
+systemctl --user enable chat-local-gemini
+systemctl --user start chat-local-gemini
+systemctl --user status chat-local-gemini --no-pager
+```
+
+O serviço usa `/home/marcus/chat-local-gemini/.env`, executa o Uvicorn da
+`.venv` e escuta somente em `127.0.0.1:8765`.
+
+Comandos operacionais:
+
+```bash
+systemctl --user restart chat-local-gemini
+systemctl --user stop chat-local-gemini
+journalctl --user -u chat-local-gemini -f
+```
+
+### Scripts locais
+
+Se não quiser usar systemd:
+
+```bash
+cd ~/chat-local-gemini
+make start
+make status
+make restart
+make stop
+make logs
+```
+
+Setup e verificações também estão disponíveis pelo Makefile:
+
+```bash
+make setup
+make check
+make smoke
+```
+
+Não execute o serviço systemd e `make start` ao mesmo tempo, pois ambos usam a
+porta `8765`. Antes de trocar do modo systemd para scripts:
+
+```bash
+systemctl --user stop chat-local-gemini
+```
+
 ## Autenticação interna
 
 Por padrão, `INTERNAL_API_TOKEN` vazio mantém os endpoints operacionais acessíveis
