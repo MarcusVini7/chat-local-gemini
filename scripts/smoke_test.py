@@ -32,6 +32,7 @@ def request(method: str, path: str, payload: dict | None = None) -> tuple[int, s
 def main() -> int:
     checks = [
         ("GET", "/health", None, 200),
+        ("GET", "/app", None, 200),
         ("GET", "/stores", None, 200),
         ("GET", "/documents", None, 200),
         ("GET", "/queries", None, 200),
@@ -41,6 +42,9 @@ def main() -> int:
         status, body = request(method, path, payload)
         print(method, path, status, body)
         if status != expected:
+            return 1
+        if path == "/app" and "Chat Local Gemini" not in body:
+            print("GET /app missing expected page title")
             return 1
 
     status, body = request(

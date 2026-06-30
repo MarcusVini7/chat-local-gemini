@@ -21,6 +21,37 @@ uvicorn app.main:app --host 127.0.0.1 --port 8765 --reload
 
 Preencha `GEMINI_API_KEY` no `.env`.
 
+## Interface Web Local
+
+Inicie a API:
+
+```bash
+cd ~/chat-local-gemini
+source .venv/bin/activate
+
+mkdir -p logs
+nohup uvicorn app.main:app \
+  --host 127.0.0.1 \
+  --port 8765 \
+  > logs/api.log 2>&1 &
+
+echo $! > .uvicorn.pid
+```
+
+Acesse:
+
+```text
+http://127.0.0.1:8765/app
+```
+
+A interface permite selecionar e criar bases, enviar documentos, consultar o
+chat e revisar o histórico. Se `INTERNAL_API_TOKEN` estiver configurado no
+`.env`, informe o mesmo token no campo da interface. Ele fica somente no
+`localStorage` do navegador. Com o token vazio, a interface funciona sem token.
+
+Esta autenticação e o armazenamento no navegador são exclusivos do MVP local.
+Mantenha o Uvicorn em `127.0.0.1` e não exponha a interface na internet.
+
 ## Autenticação interna
 
 Por padrão, `INTERNAL_API_TOKEN` vazio mantém os endpoints operacionais acessíveis

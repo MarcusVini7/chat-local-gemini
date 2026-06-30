@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>Chat Local Gemini</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <header class="brand">
+          <span class="brand-mark" aria-hidden="true">CL</span>
+          <div>
+            <strong>Chat Local Gemini</strong>
+            <span>Fontes locais</span>
+          </div>
+          <button class="icon-button mobile-only" id="closeSidebar" type="button" aria-label="Fechar menu">×</button>
+        </header>
+
+        <section class="sidebar-section token-section">
+          <label for="tokenInput">Token interno</label>
+          <input id="tokenInput" type="password" autocomplete="off" placeholder="X-Internal-Token">
+          <div class="button-row">
+            <button class="button secondary" id="saveToken" type="button">Salvar token</button>
+            <button class="button ghost" id="clearToken" type="button">Limpar</button>
+          </div>
+        </section>
+
+        <section class="sidebar-section bases-section">
+          <div class="section-heading">
+            <h2>Bases</h2>
+            <button class="icon-button" id="refreshStores" type="button" title="Atualizar bases" aria-label="Atualizar bases">↻</button>
+          </div>
+          <div class="store-list" id="storeList" aria-live="polite"></div>
+          <button class="button primary full-width" id="toggleStoreForm" type="button">+ Nova base</button>
+        </section>
+
+        <form class="new-store-form hidden" id="newStoreForm">
+          <h3>Nova base</h3>
+          <label for="tenantIdInput">Tenant ID</label>
+          <input id="tenantIdInput" name="tenantId" value="marcus" required>
+          <label for="storeKeyInput">Chave da base</label>
+          <input id="storeKeyInput" name="storeKey" value="curso-devops" required>
+          <label for="displayNameInput">Nome</label>
+          <input id="displayNameInput" name="displayName" placeholder="Curso de DevOps" required>
+          <div class="button-row">
+            <button class="button primary" type="submit">Criar</button>
+            <button class="button ghost" id="cancelStoreForm" type="button">Cancelar</button>
+          </div>
+        </form>
+      </aside>
+
+      <main class="workspace">
+        <header class="workspace-header">
+          <button class="icon-button mobile-only" id="openSidebar" type="button" aria-label="Abrir menu">☰</button>
+          <div class="workspace-title">
+            <span id="storeTenant">Nenhuma base selecionada</span>
+            <h1 id="storeTitle">Chat Local Gemini</h1>
+          </div>
+          <span class="api-status" id="apiStatus">API local</span>
+        </header>
+
+        <nav class="tabs" aria-label="Conteúdo da base">
+          <button class="tab active" type="button" data-tab="chat">Chat</button>
+          <button class="tab" type="button" data-tab="documents">Documentos</button>
+          <button class="tab" type="button" data-tab="history">Histórico</button>
+        </nav>
+
+        <div class="notice hidden" id="notice" role="status"></div>
+
+        <section class="empty-state" id="emptyState">
+          <div class="empty-mark" aria-hidden="true">CL</div>
+          <h2>Crie ou selecione uma base para começar.</h2>
+        </section>
+
+        <section class="panel chat-panel hidden" id="chatPanel" data-panel="chat">
+          <div class="chat-toolbar">
+            <div class="segmented" id="chatMode" aria-label="Modo do chat">
+              <button class="active" type="button" data-mode="query">Consulta técnica</button>
+              <button type="button" data-mode="customer">Atendimento</button>
+            </div>
+            <div class="customer-options hidden" id="customerOptions">
+              <label for="channelSelect">Canal</label>
+              <select id="channelSelect">
+                <option value="whatsapp">WhatsApp</option>
+                <option value="email">E-mail</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="message-list" id="messageList" aria-live="polite">
+            <div class="chat-empty" id="chatEmpty">
+              <strong id="chatEmptyTitle">Converse com a base</strong>
+            </div>
+          </div>
+
+          <form class="composer" id="chatForm">
+            <textarea id="questionInput" rows="2" placeholder="Faça uma pergunta sobre esta base" required></textarea>
+            <button class="button primary send-button" id="sendQuestion" type="submit">Enviar</button>
+          </form>
+        </section>
+
+        <section class="panel hidden" id="documentsPanel" data-panel="documents">
+          <div class="panel-header">
+            <div>
+              <span class="eyebrow">Fontes</span>
+              <h2>Documentos</h2>
+            </div>
+            <button class="button secondary" id="refreshDocuments" type="button">Atualizar</button>
+          </div>
+
+          <form class="upload-bar" id="uploadForm">
+            <input id="fileInput" type="file" required>
+            <button class="button primary" id="uploadButton" type="submit">Enviar documento</button>
+            <span class="upload-status" id="uploadStatus"></span>
+          </form>
+
+          <div class="data-list" id="documentList" aria-live="polite"></div>
+        </section>
+
+        <section class="panel hidden" id="historyPanel" data-panel="history">
+          <div class="panel-header history-header">
+            <div>
+              <span class="eyebrow">Auditoria</span>
+              <h2>Histórico</h2>
+            </div>
+            <div class="filters">
+              <label>
+                Confiança
+                <select id="confidenceFilter">
+                  <option value="">Todas</option>
+                  <option value="high">Alta</option>
+                  <option value="medium">Média</option>
+                  <option value="low">Baixa</option>
+                </select>
+              </label>
+              <label>
+                Escalonamento
+                <select id="escalateFilter">
+                  <option value="">Todos</option>
+                  <option value="true">Sim</option>
+                  <option value="false">Não</option>
+                </select>
+              </label>
+              <button class="button secondary" id="refreshHistory" type="button">Atualizar</button>
+            </div>
+          </div>
+
+          <div class="data-list history-list" id="historyList" aria-live="polite"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
