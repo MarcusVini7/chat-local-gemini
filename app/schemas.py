@@ -112,14 +112,58 @@ class DocumentListItem(BaseModel):
     sizeBytes: int
     geminiDocumentName: str | None = None
     status: str
+    active: bool
+    notes: str | None = None
     errorMessage: str | None = None
     createdAt: str
     indexedAt: str | None = None
+    deletedAt: str | None = None
+    replacedByDocumentId: int | None = None
 
 
 class DocumentListResponse(BaseModel):
     items: list[DocumentListItem]
     count: int
+
+
+class DocumentUpdateRequest(BaseModel):
+    notes: str | None = None
+    active: bool | None = None
+
+
+class DocumentReplaceResponse(BaseModel):
+    replaced: bool
+    oldDocumentId: int
+    newDocument: DocumentUploadResponse
+
+
+class StoreDocumentStats(BaseModel):
+    total: int
+    active: int
+    inactive: int
+    indexed: int
+    failed: int
+    uploaded: int
+
+
+class StoreQueryStats(BaseModel):
+    total: int
+    highConfidence: int
+    lowConfidence: int
+    shouldEscalate: int
+
+
+class StoreNoteStats(BaseModel):
+    total: int
+
+
+class StoreStatsResponse(BaseModel):
+    tenantId: str
+    storeKey: str
+    displayName: str
+    documents: StoreDocumentStats
+    queries: StoreQueryStats
+    notes: StoreNoteStats
 
 
 class QueryListItem(BaseModel):

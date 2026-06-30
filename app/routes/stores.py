@@ -7,9 +7,13 @@ from app.schemas import (
     StoreCreate,
     StoreListItem,
     StoreListResponse,
+    StoreDocumentStats,
+    StoreNoteStats,
     StoreOut,
+    StoreQueryStats,
     StoreSummaryRequest,
     StoreSummaryResponse,
+    StoreStatsResponse,
     SuggestQuestionsRequest,
     SuggestQuestionsResponse,
 )
@@ -46,6 +50,66 @@ def list_stores(
 
     items = [_to_store_list_item(row) for row in rows]
     return StoreListResponse(items=items, count=len(items))
+
+
+@router.get("/stores/stats", response_model=StoreStatsResponse)
+def store_stats(tenantId: str, storeKey: str) -> StoreStatsResponse:
+    store = _get_store(tenantId, storeKey)
+    if not store:
+        raise HTTPException(status_code=404, detail="Store not found")
+
+    with get_db() as conn:
+        document_stats = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active,
+                SUM(CASE WHEN active = 0 THEN 1 ELSE 0 END) AS inactive,
+                SUM(CASE WHEN status = 'indexed' THEN 1 ELSE 0 END) AS indexed,
+                SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed,
+                SUM(CASE WHEN status = 'uploaded' THEN 1 ELSE 0 END) AS uploaded
+            FROM documents
+            WHERE store_id = ?
+            """,
+            (store["id"],),
+        ).fetchone()
+        query_stats = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN confidence = 'high' THEN 1 ELSE 0 END) AS high_confidence,
+                SUM(CASE WHEN confidence = 'low' THEN 1 ELSE 0 END) AS low_confidence,
+                SUM(CASE WHEN should_escalate = 1 THEN 1 ELSE 0 END) AS should_escalate
+            FROM queries
+            WHERE store_id = ?
+            """,
+            (store["id"],),
+        ).fetchone()
+        note_stats = conn.execute(
+            "SELECT COUNT(*) AS total FROM notes WHERE store_id = ?",
+            (store["id"],),
+        ).fetchone()
+
+    return StoreStatsResponse(
+        tenantId=store["tenant_id"],
+        storeKey=store["store_key"],
+        displayName=store["display_name"],
+        documents=StoreDocumentStats(
+            total=document_stats["total"] or 0,
+            active=document_stats["active"] or 0,
+            inactive=document_stats["inactive"] or 0,
+            indexed=document_stats["indexed"] or 0,
+            failed=document_stats["failed"] or 0,
+            uploaded=document_stats["uploaded"] or 0,
+        ),
+        queries=StoreQueryStats(
+            total=query_stats["total"] or 0,
+            highConfidence=query_stats["high_confidence"] or 0,
+            lowConfidence=query_stats["low_confidence"] or 0,
+            shouldEscalate=query_stats["should_escalate"] or 0,
+        ),
+        notes=StoreNoteStats(total=note_stats["total"] or 0),
+    )
 
 
 @router.post("/stores", response_model=StoreOut)

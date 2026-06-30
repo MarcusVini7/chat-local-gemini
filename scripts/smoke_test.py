@@ -35,6 +35,18 @@ def main() -> int:
         ("GET", "/app", None, 200),
         ("GET", "/stores", None, 200),
         ("GET", "/documents", None, 200),
+        (
+            "GET",
+            "/documents?tenantId=marcus&storeKey=curso-devops&active=all",
+            None,
+            200,
+        ),
+        (
+            "GET",
+            "/stores/stats?tenantId=marcus&storeKey=curso-devops",
+            None,
+            200,
+        ),
         ("GET", "/queries", None, 200),
         ("GET", "/notes?tenantId=marcus&storeKey=curso-devops", None, 200),
     ]

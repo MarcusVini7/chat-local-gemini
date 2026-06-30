@@ -121,7 +121,36 @@
               <span class="eyebrow">Fontes</span>
               <h2>Documentos</h2>
             </div>
-            <button class="button secondary" id="refreshDocuments" type="button">Atualizar</button>
+            <div class="document-toolbar">
+              <label for="documentActiveFilter">
+                Exibir
+                <select id="documentActiveFilter">
+                  <option value="true">Ativos</option>
+                  <option value="false">Inativos</option>
+                  <option value="all">Todos</option>
+                </select>
+              </label>
+              <button class="button secondary" id="refreshDocuments" type="button">Atualizar</button>
+            </div>
+          </div>
+
+          <div class="store-stats" id="storeStats">
+            <div class="stat-item">
+              <span>Documentos ativos</span>
+              <strong id="statActiveDocuments">—</strong>
+            </div>
+            <div class="stat-item">
+              <span>Indexados</span>
+              <strong id="statIndexedDocuments">—</strong>
+            </div>
+            <div class="stat-item">
+              <span>Queries</span>
+              <strong id="statQueries">—</strong>
+            </div>
+            <div class="stat-item">
+              <span>Notas</span>
+              <strong id="statNotes">—</strong>
+            </div>
           </div>
 
           <form class="upload-bar" id="uploadForm">

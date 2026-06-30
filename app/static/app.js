@@ -45,6 +45,7 @@ function cacheElements() {
     "confidenceFilter",
     "customerOptions",
     "displayNameInput",
+    "documentActiveFilter",
     "documentList",
     "documentsPanel",
     "emptyState",
@@ -81,6 +82,10 @@ function cacheElements() {
     "storeList",
     "storeTenant",
     "storeTitle",
+    "statActiveDocuments",
+    "statIndexedDocuments",
+    "statNotes",
+    "statQueries",
     "suggestedQuestions",
     "summaryCitations",
     "summaryEmpty",
@@ -123,7 +128,8 @@ function bindEvents() {
   elements.chatForm.addEventListener("submit", sendQuestion);
   elements.questionInput.addEventListener("keydown", handleQuestionKeydown);
   elements.uploadForm.addEventListener("submit", uploadDocument);
-  elements.refreshDocuments.addEventListener("click", loadDocuments);
+  elements.refreshDocuments.addEventListener("click", refreshDocumentData);
+  elements.documentActiveFilter.addEventListener("change", loadDocuments);
   elements.refreshHistory.addEventListener("click", loadHistory);
   elements.confidenceFilter.addEventListener("change", loadHistory);
   elements.escalateFilter.addEventListener("change", loadHistory);
@@ -427,7 +433,7 @@ function switchTab(tabName) {
   const panel = document.querySelector(`[data-panel="${tabName}"]`);
   panel.classList.remove("hidden");
   if (tabName === "documents") {
-    loadDocuments();
+    refreshDocumentData();
   } else if (tabName === "history") {
     loadHistory();
   } else if (tabName === "notes") {
@@ -614,6 +620,31 @@ function renderCitations(citations) {
   return details;
 }
 
+async function refreshDocumentData() {
+  await Promise.all([loadDocuments(), loadStoreStats()]);
+}
+
+async function loadStoreStats() {
+  if (!state.selectedStore) {
+    return;
+  }
+  const query = new URLSearchParams(selectedStorePayload());
+  try {
+    const stats = await apiRequest(`/stores/stats?${query}`);
+    elements.statActiveDocuments.textContent = stats.documents.active;
+    elements.statIndexedDocuments.textContent = stats.documents.indexed;
+    elements.statQueries.textContent = stats.queries.total;
+    elements.statNotes.textContent = stats.notes.total;
+  } catch (error) {
+    ["statActiveDocuments", "statIndexedDocuments", "statQueries", "statNotes"].forEach(
+      (id) => {
+        elements[id].textContent = "—";
+      },
+    );
+    showNotice(error.message);
+  }
+}
+
 async function loadDocuments() {
   if (!state.selectedStore) {
     return;
@@ -623,6 +654,7 @@ async function loadDocuments() {
   const query = new URLSearchParams({
     tenantId: state.selectedStore.tenantId,
     storeKey: state.selectedStore.storeKey,
+    active: elements.documentActiveFilter.value,
   });
   try {
     const data = await apiRequest(`/documents?${query}`);
@@ -640,7 +672,11 @@ function renderDocuments(documents) {
     return;
   }
   documents.forEach((documentItem) => {
-    const row = createElement("article", "data-row document-row");
+    const row = createElement(
+      "article",
+      `data-row document-row ${documentItem.active ? "" : "inactive"}`.trim(),
+    );
+    const header = createElement("div", "document-header");
     const info = document.createElement("div");
     info.append(createElement("div", "document-name", documentItem.originalFilename));
     const meta = createElement("div", "document-meta");
@@ -652,9 +688,177 @@ function renderDocuments(documents) {
       meta.append(createElement("span", "", `Indexado em ${formatDate(documentItem.indexedAt)}`));
     }
     info.append(meta);
-    row.append(info, createBadge(translateStatus(documentItem.status), documentItem.status));
+    if (documentItem.notes) {
+      info.append(createElement("p", "document-notes-preview", documentItem.notes));
+    }
+
+    const badges = createElement("div", "document-badges");
+    badges.append(
+      createBadge(documentItem.active ? "Ativo" : "Inativo", documentItem.active ? "indexed" : "failed"),
+      createBadge(translateStatus(documentItem.status), documentItem.status),
+    );
+    header.append(info, badges);
+    row.append(header);
+
+    const details = createElement("div", "document-details hidden");
+    const actions = createElement("div", "document-actions");
+    const detailsButton = createElement("button", "button secondary", "Detalhes");
+    detailsButton.type = "button";
+    detailsButton.addEventListener("click", () => {
+      toggleDocumentDetails(documentItem, details, detailsButton);
+    });
+
+    const activeButton = createElement(
+      "button",
+      `button ghost ${documentItem.active ? "danger" : ""}`.trim(),
+      documentItem.active ? "Marcar inativo" : "Reativar",
+    );
+    activeButton.type = "button";
+    activeButton.addEventListener("click", () => toggleDocumentActive(documentItem, activeButton));
+
+    const replaceButton = createElement("button", "button ghost", "Substituir");
+    replaceButton.type = "button";
+    replaceButton.addEventListener("click", () => chooseReplacementFile(documentItem, replaceButton));
+
+    actions.append(detailsButton, activeButton, replaceButton);
+    row.append(actions, details);
     elements.documentList.append(row);
   });
+}
+
+async function toggleDocumentDetails(documentItem, container, button) {
+  if (!container.classList.contains("hidden")) {
+    container.classList.add("hidden");
+    button.textContent = "Detalhes";
+    return;
+  }
+
+  setButtonBusy(button, true, "Carregando...");
+  try {
+    const details = await apiRequest(`/documents/${documentItem.id}`);
+    renderDocumentDetails(details, container);
+    container.classList.remove("hidden");
+    button.textContent = "Fechar detalhes";
+  } catch (error) {
+    showNotice(error.message);
+    button.textContent = "Detalhes";
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function renderDocumentDetails(documentItem, container) {
+  const grid = createElement("div", "document-detail-grid");
+  const values = [
+    `ID: ${documentItem.id}`,
+    `MIME: ${documentItem.mimeType || "Não informado"}`,
+    `SHA256: ${documentItem.sha256}`,
+    `Tamanho: ${formatBytes(documentItem.sizeBytes)}`,
+    `Criado: ${formatDate(documentItem.createdAt)}`,
+    `Indexado: ${formatDate(documentItem.indexedAt)}`,
+    `Removido: ${documentItem.deletedAt ? formatDate(documentItem.deletedAt) : "Não"}`,
+    `Substituído por: ${documentItem.replacedByDocumentId || "Não"}`,
+  ];
+  values.forEach((value) => grid.append(createElement("span", "", value)));
+
+  const editor = createElement("div", "document-note-editor");
+  const field = document.createElement("textarea");
+  field.rows = 3;
+  field.placeholder = "Notas locais sobre este documento";
+  field.value = documentItem.notes || "";
+  const saveButton = createElement("button", "button primary", "Salvar notas");
+  saveButton.type = "button";
+  saveButton.addEventListener("click", () => {
+    saveDocumentNotes(documentItem.id, field.value, saveButton);
+  });
+  editor.append(field, saveButton);
+  container.replaceChildren(grid, editor);
+}
+
+async function saveDocumentNotes(documentId, notes, button) {
+  setButtonBusy(button, true, "Salvando...");
+  try {
+    await apiRequest(`/documents/${documentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ notes }),
+    });
+    showToast("Notas do documento atualizadas.", "success");
+    await refreshDocumentData();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(button, false, "Salvar notas");
+  }
+}
+
+async function toggleDocumentActive(documentItem, button) {
+  const action = documentItem.active ? "inativar" : "reativar";
+  if (
+    documentItem.active &&
+    !window.confirm(
+      "Marcar este documento como inativo? O índice remoto Gemini não será removido.",
+    )
+  ) {
+    return;
+  }
+
+  setButtonBusy(button, true, documentItem.active ? "Inativando..." : "Reativando...");
+  try {
+    if (documentItem.active) {
+      await apiRequest(`/documents/${documentItem.id}`, { method: "DELETE" });
+    } else {
+      await apiRequest(`/documents/${documentItem.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ active: true }),
+      });
+    }
+    showToast(`Documento ${action === "inativar" ? "inativado" : "reativado"}.`, "success");
+    await refreshDocumentData();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(
+      button,
+      false,
+      documentItem.active ? "Marcar inativo" : "Reativar",
+    );
+  }
+}
+
+function chooseReplacementFile(documentItem, button) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.className = "hidden";
+  input.addEventListener(
+    "change",
+    async () => {
+      if (input.files.length) {
+        await replaceDocument(documentItem, input.files[0], button);
+      }
+      input.remove();
+    },
+    { once: true },
+  );
+  document.body.append(input);
+  input.click();
+}
+
+async function replaceDocument(documentItem, file, button) {
+  const formData = new FormData();
+  formData.append("file", file);
+  setButtonBusy(button, true, "Substituindo...");
+  try {
+    await apiRequest(`/documents/${documentItem.id}/replace`, {
+      method: "POST",
+      body: formData,
+    });
+    showToast("Documento substituído e indexado.", "success");
+    await refreshDocumentData();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(button, false, "Substituir");
+  }
 }
 
 async function uploadDocument(event) {
@@ -678,7 +882,7 @@ async function uploadDocument(event) {
     });
     elements.uploadStatus.textContent = result.status === "indexed" ? "Indexado" : result.status;
     elements.fileInput.value = "";
-    await loadDocuments();
+    await refreshDocumentData();
   } catch (error) {
     elements.uploadStatus.textContent = "Erro";
     showNotice(error.message);

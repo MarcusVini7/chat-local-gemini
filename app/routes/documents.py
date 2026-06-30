@@ -1,12 +1,19 @@
 import hashlib
 import shutil
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from app.config import settings
 from app.database import get_db
-from app.schemas import DocumentListItem, DocumentListResponse, DocumentUploadResponse
+from app.schemas import (
+    DocumentListItem,
+    DocumentListResponse,
+    DocumentReplaceResponse,
+    DocumentUpdateRequest,
+    DocumentUploadResponse,
+)
 from app.security import require_internal_token
 from app.services.gemini_file_search import GeminiFileSearchService
 
@@ -19,9 +26,10 @@ def list_documents(
     tenantId: str | None = None,
     storeKey: str | None = None,
     status: str | None = None,
+    active: Literal["true", "false", "all"] = "true",
 ) -> DocumentListResponse:
     where: list[str] = []
-    params: list[str] = []
+    params: list[object] = []
     if tenantId:
         where.append("s.tenant_id = ?")
         params.append(tenantId)
@@ -31,6 +39,9 @@ def list_documents(
     if status:
         where.append("d.status = ?")
         params.append(status)
+    if active != "all":
+        where.append("d.active = ?")
+        params.append(1 if active == "true" else 0)
 
     sql = """
         SELECT
@@ -43,7 +54,7 @@ def list_documents(
     """
     if where:
         sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY d.created_at DESC"
+    sql += " ORDER BY d.created_at DESC, d.id DESC"
 
     with get_db() as conn:
         rows = conn.execute(sql, params).fetchall()
@@ -62,6 +73,127 @@ def upload_document(
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
 
+    document, duplicate = _create_and_index_document(store, file)
+    return _to_document_response(document, duplicate=duplicate)
+
+
+@router.get("/documents/{document_id}", response_model=DocumentListItem)
+def get_document(document_id: int) -> DocumentListItem:
+    document = _get_document_details(document_id)
+    if not document:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return _to_document_list_item(document)
+
+
+@router.patch("/documents/{document_id}", response_model=DocumentListItem)
+def update_document(
+    document_id: int,
+    payload: DocumentUpdateRequest,
+) -> DocumentListItem:
+    fields = payload.model_fields_set
+    if not fields:
+        raise HTTPException(status_code=400, detail="At least one field is required")
+    if "active" in fields and payload.active is None:
+        raise HTTPException(status_code=400, detail="active must be true or false")
+
+    assignments: list[str] = []
+    params: list[object] = []
+    if "notes" in fields:
+        notes = payload.notes.strip() if payload.notes else None
+        assignments.append("notes = ?")
+        params.append(notes)
+    if "active" in fields:
+        assignments.append("active = ?")
+        params.append(1 if payload.active else 0)
+        if payload.active:
+            assignments.append("deleted_at = NULL")
+        else:
+            assignments.append("deleted_at = COALESCE(deleted_at, datetime('now'))")
+
+    params.append(document_id)
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM documents WHERE id = ?",
+            (document_id,),
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Document not found")
+        conn.execute(
+            f"UPDATE documents SET {', '.join(assignments)} WHERE id = ?",
+            params,
+        )
+
+    document = _get_document_details(document_id)
+    return _to_document_list_item(document)
+
+
+@router.delete("/documents/{document_id}")
+def delete_document(document_id: int) -> dict[str, bool | int]:
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT id FROM documents WHERE id = ?",
+            (document_id,),
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Document not found")
+        conn.execute(
+            """
+            UPDATE documents
+            SET active = 0,
+                deleted_at = COALESCE(deleted_at, datetime('now'))
+            WHERE id = ?
+            """,
+            (document_id,),
+        )
+    return {"deleted": True, "id": document_id, "active": False}
+
+
+@router.post(
+    "/documents/{document_id}/replace",
+    response_model=DocumentReplaceResponse,
+)
+def replace_document(
+    document_id: int,
+    file: UploadFile = File(...),
+) -> DocumentReplaceResponse:
+    old_document = _get_document_details(document_id)
+    if not old_document:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    store = {
+        "id": old_document["store_id"],
+        "gemini_store_name": old_document["gemini_store_name"],
+    }
+    new_document, _ = _create_and_index_document(
+        store,
+        file,
+        reject_duplicate=True,
+    )
+
+    with get_db() as conn:
+        conn.execute(
+            """
+            UPDATE documents
+            SET active = 0,
+                deleted_at = COALESCE(deleted_at, datetime('now')),
+                replaced_by_document_id = ?
+            WHERE id = ?
+            """,
+            (new_document["id"], document_id),
+        )
+
+    return DocumentReplaceResponse(
+        replaced=True,
+        oldDocumentId=document_id,
+        newDocument=_to_document_response(new_document),
+    )
+
+
+def _create_and_index_document(
+    store: dict,
+    file: UploadFile,
+    reject_duplicate: bool = False,
+) -> tuple[dict, bool]:
     saved_path, sha256, size_bytes = _save_upload(store["id"], file)
 
     with get_db() as conn:
@@ -70,8 +202,14 @@ def upload_document(
             (store["id"], sha256),
         ).fetchone()
         if duplicate:
-            Path(saved_path).unlink(missing_ok=True)
-            return _to_document_response(duplicate, duplicate=True)
+            if Path(saved_path) != Path(duplicate["local_path"]):
+                Path(saved_path).unlink(missing_ok=True)
+            if reject_duplicate:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Replacement file is already registered in this store",
+                )
+            return duplicate, True
 
         cursor = conn.execute(
             """
@@ -108,8 +246,13 @@ def upload_document(
                 """,
                 (document_name, document_id),
             )
-            document = conn.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
-        return _to_document_response(document)
+            document = conn.execute(
+                "SELECT * FROM documents WHERE id = ?",
+                (document_id,),
+            ).fetchone()
+        return document, False
+    except HTTPException:
+        raise
     except Exception as exc:
         with get_db() as conn:
             conn.execute(
@@ -120,8 +263,10 @@ def upload_document(
                 """,
                 (str(exc), document_id),
             )
-            document = conn.execute("SELECT * FROM documents WHERE id = ?", (document_id,)).fetchone()
-        raise HTTPException(status_code=502, detail=f"Gemini document upload/indexing failed: {exc}") from exc
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini document upload/indexing failed: {exc}",
+        ) from exc
 
 
 def _get_store(tenant_id: str, store_key: str) -> dict | None:
@@ -132,6 +277,24 @@ def _get_store(tenant_id: str, store_key: str) -> dict | None:
             WHERE tenant_id = ? AND store_key = ?
             """,
             (tenant_id, store_key),
+        ).fetchone()
+
+
+def _get_document_details(document_id: int) -> dict | None:
+    with get_db() as conn:
+        return conn.execute(
+            """
+            SELECT
+                d.*,
+                s.tenant_id,
+                s.store_key,
+                s.display_name,
+                s.gemini_store_name
+            FROM documents d
+            JOIN stores s ON s.id = d.store_id
+            WHERE d.id = ?
+            """,
+            (document_id,),
         ).fetchone()
 
 
@@ -162,7 +325,10 @@ def _save_upload(store_id: int, upload: UploadFile) -> tuple[str, str, int]:
     return str(final_path), digest, size
 
 
-def _to_document_response(row: dict, duplicate: bool = False) -> DocumentUploadResponse:
+def _to_document_response(
+    row: dict,
+    duplicate: bool = False,
+) -> DocumentUploadResponse:
     return DocumentUploadResponse(
         id=row["id"],
         storeId=row["store_id"],
@@ -187,7 +353,11 @@ def _to_document_list_item(row: dict) -> DocumentListItem:
         sizeBytes=row["size_bytes"],
         geminiDocumentName=row["gemini_document_name"],
         status=row["status"],
+        active=bool(row["active"]),
+        notes=row["notes"],
         errorMessage=row["error_message"],
         createdAt=row["created_at"],
         indexedAt=row["indexed_at"],
+        deletedAt=row["deleted_at"],
+        replacedByDocumentId=row["replaced_by_document_id"],
     )

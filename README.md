@@ -196,6 +196,22 @@ curl -fsS "http://127.0.0.1:8765/documents?tenantId=marcus&storeKey=curso-devops
   -H "X-Internal-Token: $INTERNAL_API_TOKEN" | python -m json.tool
 ```
 
+## Documentos e fontes
+
+A aba **Documentos** mostra estatísticas da base e permite filtrar fontes
+ativas, inativas ou todas. Cada documento possui detalhes locais, notas de
+auditoria e ações para inativar, reativar ou substituir por um novo upload.
+
+O upload e a substituição aguardam a indexação no Gemini File Search. A
+substituição só inativa o documento antigo depois que o novo documento é
+indexado com sucesso.
+
+Neste MVP, excluir ou inativar um documento é uma operação lógica no SQLite:
+o arquivo local não é apagado e o documento não é necessariamente removido do
+índice remoto Gemini. Portanto, ele ainda pode aparecer em uma recuperação do
+RAG. Para uma base crítica que precise remover fontes definitivamente, criar
+uma nova store limpa ainda é o caminho mais seguro.
+
 ### Query interna
 
 ```bash

@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS documents (
     error_message TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     indexed_at TEXT,
+    active INTEGER NOT NULL DEFAULT 1,
+    deleted_at TEXT,
+    replaced_by_document_id INTEGER,
+    notes TEXT,
     FOREIGN KEY (store_id) REFERENCES stores(id),
     UNIQUE (store_id, sha256)
 );
@@ -65,6 +69,13 @@ CREATE TABLE IF NOT EXISTS notes (
 CREATE INDEX IF NOT EXISTS idx_notes_store_id ON notes(store_id);
 """
 
+DOCUMENT_COLUMN_MIGRATIONS = {
+    "active": "INTEGER NOT NULL DEFAULT 1",
+    "deleted_at": "TEXT",
+    "replaced_by_document_id": "INTEGER",
+    "notes": "TEXT",
+}
+
 
 def dict_factory(cursor: sqlite3.Cursor, row: sqlite3.Row) -> dict:
     return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
@@ -88,3 +99,20 @@ def init_db() -> None:
     Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(settings.database_path) as conn:
         conn.executescript(SCHEMA_SQL)
+        _migrate_documents(conn)
+
+
+def _migrate_documents(conn: sqlite3.Connection) -> None:
+    columns = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(documents)").fetchall()
+    }
+    for name, definition in DOCUMENT_COLUMN_MIGRATIONS.items():
+        if name not in columns:
+            conn.execute(f"ALTER TABLE documents ADD COLUMN {name} {definition}")
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_documents_store_active
+        ON documents(store_id, active)
+        """
+    )
