@@ -26,6 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateTokenStatus(elements.tokenInput.value ? "configured" : "empty");
   setChatMode(state.chatMode);
   checkApiStatus();
+  loadModels();
   loadStores();
 });
 
@@ -61,6 +62,7 @@ function cacheElements() {
     "rebuildPlanResult",
     "lastApiCheck",
     "messageList",
+    "modelSelect",
     "newNote",
     "newStoreForm",
     "noteContent",
@@ -77,6 +79,9 @@ function cacheElements() {
     "refreshHistory",
     "refreshNotes",
     "refreshStores",
+    "reloadModels",
+    "activeModelBadge",
+    "saveModel",
     "saveNote",
     "saveSummaryNote",
     "saveToken",
@@ -119,6 +124,8 @@ function bindEvents() {
   elements.saveToken.addEventListener("click", saveToken);
   elements.clearToken.addEventListener("click", clearToken);
   elements.testToken.addEventListener("click", testToken);
+  elements.saveModel.addEventListener("click", saveModel);
+  elements.reloadModels.addEventListener("click", loadModels);
   elements.checkApi.addEventListener("click", () => checkApiStatus(true));
   elements.clearChat.addEventListener("click", clearChat);
   elements.refreshStores.addEventListener("click", loadStores);
@@ -267,6 +274,7 @@ function saveToken() {
   }
   elements.tokenInput.value = token;
   clearNotice();
+  loadModels();
   loadStores();
 }
 
@@ -276,6 +284,7 @@ function clearToken() {
   updateTokenStatus("empty");
   clearNotice();
   showToast("Token removido.");
+  loadModels();
   loadStores();
 }
 
@@ -308,6 +317,67 @@ function updateTokenStatus(status) {
   elements.tokenStatus.textContent = labels[status];
   elements.tokenStatus.classList.toggle("valid", status === "valid");
   elements.tokenStatus.classList.toggle("invalid", status === "invalid");
+}
+
+const MODEL_LABELS = {
+  "gemini-2.5-flash-lite": "gemini-2.5-flash-lite — mais leve/rápido",
+  "gemini-2.5-flash": "gemini-2.5-flash — equilibrado",
+  "gemini-3.5-flash": "gemini-3.5-flash — melhor qualidade, pode ter alta demanda",
+};
+
+async function loadModels() {
+  setButtonBusy(elements.reloadModels, true, "Recarregando...");
+  elements.modelSelect.disabled = true;
+  elements.saveModel.disabled = true;
+  try {
+    const data = await apiRequest("/settings/model");
+    elements.modelSelect.replaceChildren();
+    (data.allowedModels || []).forEach((model) => {
+      const option = document.createElement("option");
+      option.value = model;
+      option.textContent = MODEL_LABELS[model] || model;
+      elements.modelSelect.append(option);
+    });
+    elements.modelSelect.value = data.activeModel;
+    elements.activeModelBadge.textContent = data.activeModel;
+    elements.activeModelBadge.title = `Origem: ${data.source === "sqlite" ? "SQLite" : ".env"}`;
+    elements.modelSelect.disabled = false;
+    elements.saveModel.disabled = false;
+  } catch (error) {
+    elements.modelSelect.replaceChildren(new Option("Modelos indisponíveis", ""));
+    elements.activeModelBadge.textContent = "Indisponível";
+    if (error.message === "Token interno ausente ou inválido.") {
+      updateTokenStatus("invalid");
+    }
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.reloadModels, false, "Recarregar modelos");
+  }
+}
+
+async function saveModel() {
+  const model = elements.modelSelect.value;
+  if (!model) {
+    return;
+  }
+  setButtonBusy(elements.saveModel, true, "Salvando...");
+  clearNotice();
+  try {
+    const data = await apiRequest("/settings/model", {
+      method: "PATCH",
+      body: JSON.stringify({ model }),
+    });
+    elements.activeModelBadge.textContent = data.activeModel;
+    elements.activeModelBadge.title = "Origem: SQLite";
+    showToast(`Modelo atualizado para ${data.activeModel}`, "success");
+  } catch (error) {
+    if (error.message === "Token interno ausente ou inválido.") {
+      updateTokenStatus("invalid");
+    }
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.saveModel, false, "Salvar modelo");
+  }
 }
 
 async function loadStores() {

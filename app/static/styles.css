@@ -182,6 +182,33 @@ label {
   flex-wrap: wrap;
 }
 
+.model-section select {
+  margin: 7px 0 9px;
+}
+
+.model-section .button-row {
+  flex-wrap: wrap;
+}
+
+.model-badge {
+  max-width: 145px;
+  overflow: hidden;
+  padding: 3px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--accent-strong);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-help {
+  margin: 9px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .bases-section {
   display: flex;
   min-height: 0;

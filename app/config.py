@@ -7,13 +7,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_GEMINI_MODELS = (
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-3.5-flash",
+)
+
+
+def _gemini_allowed_models() -> tuple[str, ...]:
+    raw = os.getenv("GEMINI_ALLOWED_MODELS", "")
+    models = tuple(model.strip() for model in raw.split(",") if model.strip())
+    return models or DEFAULT_GEMINI_MODELS
+
 
 @dataclass(frozen=True)
 class Settings:
     service_name: str = "chat-local-gemini"
     internal_api_token: str = os.getenv("INTERNAL_API_TOKEN", "")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+    gemini_allowed_models: tuple[str, ...] = _gemini_allowed_models()
     gemini_embedding_model: str = os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-2")
     database_path: str = os.getenv("DATABASE_PATH", "./data/chat_local_gemini.sqlite")
     upload_dir: str = os.getenv("UPLOAD_DIR", "./data/uploads")

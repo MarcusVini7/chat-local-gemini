@@ -29,6 +29,49 @@ def request(method: str, path: str, payload: dict | None = None) -> tuple[int, s
         return exc.code, exc.read().decode("utf-8")
 
 
+def check_model_setting() -> bool:
+    status, body = request("GET", "/settings/model")
+    print("GET /settings/model", status, body)
+    if status != 200:
+        return False
+
+    initial = json.loads(body)
+    current_model = initial.get("activeModel")
+    allowed_models = initial.get("allowedModels", [])
+    target_model = "gemini-2.5-flash-lite"
+    if not current_model or target_model not in allowed_models:
+        print("FAIL: /settings/model returned invalid model data")
+        return False
+
+    success = False
+    restored = False
+    try:
+        status, body = request(
+            "PATCH",
+            "/settings/model",
+            {"model": target_model},
+        )
+        print("PATCH /settings/model", status, body)
+        if status == 200 and json.loads(body).get("activeModel") == target_model:
+            status, body = request("GET", "/settings/model")
+            print("GET /settings/model after PATCH", status, body)
+            success = (
+                status == 200
+                and json.loads(body).get("activeModel") == target_model
+            )
+    finally:
+        status, body = request(
+            "PATCH",
+            "/settings/model",
+            {"model": current_model},
+        )
+        restored = status == 200 and json.loads(body).get("activeModel") == current_model
+        print("PATCH /settings/model restore", status, body)
+        if not restored:
+            print("FAIL: could not restore the active Gemini model")
+    return success and restored
+
+
 def main() -> int:
     checks = [
         ("GET", "/health", None, 200),
@@ -66,6 +109,10 @@ def main() -> int:
         if path == "/app" and "Chat Local Gemini" not in body:
             print("GET /app missing expected page title")
             return 1
+
+    if not check_model_setting():
+        print("FAIL: runtime Gemini model setting")
+        return 1
 
     # Verifica que /stores/stats inclui bloco integrity
     status, body = request("GET", "/stores/stats?tenantId=marcus&storeKey=curso-devops")

@@ -8,6 +8,7 @@ from google.genai import types
 
 from app.config import settings
 from app.schemas import Citation
+from app.services.settings_service import get_active_gemini_model
 
 
 class GeminiFileSearchService:
@@ -45,7 +46,7 @@ class GeminiFileSearchService:
 
     def answer_with_sources(self, store_name: str, prompt: str) -> tuple[str, list[Citation]]:
         response = self.client.models.generate_content(
-            model=settings.gemini_model,
+            model=get_active_gemini_model(),
             contents=prompt,
             config=types.GenerateContentConfig(
                 tools=[

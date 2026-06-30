@@ -31,6 +31,22 @@
           </div>
         </section>
 
+        <section class="sidebar-section model-section">
+          <div class="section-heading">
+            <h2>Modelo Gemini</h2>
+            <span class="model-badge" id="activeModelBadge">Não carregado</span>
+          </div>
+          <label for="modelSelect">Modelo usado nas respostas</label>
+          <select id="modelSelect" disabled>
+            <option value="">Carregando modelos...</option>
+          </select>
+          <div class="button-row">
+            <button class="button primary" id="saveModel" type="button" disabled>Salvar modelo</button>
+            <button class="button secondary" id="reloadModels" type="button">Recarregar modelos</button>
+          </div>
+          <p class="model-help">Trocar o modelo afeta as próximas respostas.</p>
+        </section>
+
         <section class="sidebar-section bases-section">
           <div class="section-heading">
             <h2>Bases</h2>

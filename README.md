@@ -296,6 +296,31 @@ valida `/health`, as listagens (incluindo notas) e o 404 esperado ao consultar
 uma store inexistente. Testes com store/upload/query reais precisam de
 `GEMINI_API_KEY` configurada.
 
+## Troca de modelo pela tela
+
+Na interface em `http://127.0.0.1:8765/app`, a seção **Modelo Gemini** permite
+trocar o modelo usado nas próximas respostas. O padrão vem de `GEMINI_MODEL`
+no `.env`; uma escolha feita na UI fica salva no SQLite e passa a valer
+imediatamente, sem reiniciar o serviço. A troca afeta somente novas perguntas
+e não reindexa documentos nem recria stores.
+
+Se um modelo retornar `503` ou indicar alta demanda, selecione
+`gemini-2.5-flash-lite`.
+
+```bash
+TOKEN="$(grep '^INTERNAL_API_TOKEN=' .env | cut -d= -f2-)"
+
+curl -sS http://127.0.0.1:8765/settings/model \
+  -H "X-Internal-Token: $TOKEN" \
+  | python -m json.tool
+
+curl -sS -X PATCH http://127.0.0.1:8765/settings/model \
+  -H "Content-Type: application/json" \
+  -H "X-Internal-Token: $TOKEN" \
+  -d '{"model":"gemini-2.5-flash-lite"}' \
+  | python -m json.tool
+```
+
 ### Teste manual da autenticação
 
 Com `INTERNAL_API_TOKEN=` vazio no `.env`, as rotas operacionais funcionam sem
@@ -327,6 +352,7 @@ Tabelas:
 - `documents`
 - `queries`
 - `notes`
+- `app_settings`
 
 ## Documentos e fontes
 
