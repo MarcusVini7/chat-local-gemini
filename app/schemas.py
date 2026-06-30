@@ -30,6 +30,30 @@ class StoreListResponse(BaseModel):
     count: int
 
 
+class StoreSummaryRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+
+
+class StoreSummaryResponse(BaseModel):
+    summary: str
+    citations: list["Citation"]
+    confidence: Confidence
+    reason: str
+
+
+class SuggestQuestionsRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+
+
+class SuggestQuestionsResponse(BaseModel):
+    questions: list[str]
+    citations: list["Citation"]
+    confidence: Confidence
+    reason: str
+
+
 class Citation(BaseModel):
     source: str
     page: int | None = None
@@ -114,4 +138,36 @@ class QueryListItem(BaseModel):
 
 class QueryListResponse(BaseModel):
     items: list[QueryListItem]
+    count: int
+
+
+class NoteCreateRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+    title: str = Field(min_length=1, max_length=200)
+    content: str = Field(min_length=1)
+    sourceType: str | None = None
+    sourceQueryId: int | None = Field(default=None, gt=0)
+
+
+class NoteUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    content: str | None = Field(default=None, min_length=1)
+
+
+class NoteResponse(BaseModel):
+    id: int
+    storeId: int
+    tenantId: str
+    storeKey: str
+    title: str
+    content: str
+    sourceType: str | None = None
+    sourceQueryId: int | None = None
+    createdAt: str
+    updatedAt: str
+
+
+class NotesListResponse(BaseModel):
+    items: list[NoteResponse]
     count: int

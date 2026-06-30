@@ -49,6 +49,20 @@ CREATE TABLE IF NOT EXISTS queries (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (store_id) REFERENCES stores(id)
 );
+
+CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    source_type TEXT,
+    source_query_id INTEGER,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (store_id) REFERENCES stores(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_notes_store_id ON notes(store_id);
 """
 
 

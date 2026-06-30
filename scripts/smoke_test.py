@@ -36,6 +36,7 @@ def main() -> int:
         ("GET", "/stores", None, 200),
         ("GET", "/documents", None, 200),
         ("GET", "/queries", None, 200),
+        ("GET", "/notes?tenantId=marcus&storeKey=curso-devops", None, 200),
     ]
 
     for method, path, payload, expected in checks:

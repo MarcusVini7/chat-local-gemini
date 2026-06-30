@@ -436,8 +436,10 @@ label {
   display: flex;
   align-items: end;
   gap: 4px;
+  overflow-x: auto;
   padding: 0 24px;
   border-bottom: 1px solid var(--border);
+  scrollbar-width: thin;
 }
 
 .tab {
@@ -613,6 +615,13 @@ label {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 7px;
+}
+
+.message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
 }
 
 .message-heading .message-label {
@@ -857,6 +866,143 @@ label {
   color: var(--accent-strong);
 }
 
+.notebook-panel {
+  display: block;
+  padding-top: 0;
+}
+
+.notebook-section {
+  padding: 22px 0 26px;
+  border-bottom: 1px solid var(--border);
+}
+
+.notebook-section:last-child {
+  border-bottom: 0;
+}
+
+.notebook-section .panel-header {
+  margin-bottom: 14px;
+}
+
+.notebook-empty {
+  padding: 18px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.summary-result {
+  max-width: 920px;
+}
+
+.summary-text {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.save-summary {
+  margin-top: 14px;
+}
+
+.suggested-questions {
+  display: grid;
+  gap: 7px;
+}
+
+.suggested-question {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.suggested-question:last-child {
+  border-bottom: 0;
+}
+
+.suggested-question span {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.note-editor {
+  display: grid;
+  gap: 7px;
+  max-width: 780px;
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.note-editor label:not(:first-child) {
+  margin-top: 5px;
+}
+
+.note-editor textarea {
+  min-height: 160px;
+}
+
+.note-editor .button-row {
+  margin-top: 7px;
+}
+
+.notes-list {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.note-item {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: auto minmax(72px, auto) auto auto;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.note-title {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.note-content {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 9px 0;
+  color: #c7d0d3;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+}
+
+.note-meta {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.note-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid var(--border);
+}
+
+.note-actions .danger {
+  color: var(--danger);
+}
+
 .toast-region {
   position: fixed;
   z-index: 100;
@@ -975,6 +1121,18 @@ label {
   .chat-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .suggested-question {
+    grid-template-columns: 1fr;
+  }
+
+  .suggested-question .button {
+    width: fit-content;
+  }
+
+  .notes-list {
+    grid-template-columns: 1fr;
   }
 
   .filters {

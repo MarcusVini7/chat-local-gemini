@@ -71,14 +71,27 @@ REQUEST_ACTION_TERMS = [
 
 
 def answer_query(store: dict, question: str) -> QueryResponse:
+    response = answer_store_prompt(store, query_prompt(question))
+    _save_query(
+        store["id"],
+        None,
+        question,
+        response.answer,
+        response.confidence,
+        False,
+        response.citations,
+    )
+    return response
+
+
+def answer_store_prompt(store: dict, prompt: str) -> QueryResponse:
     service = GeminiFileSearchService()
     answer, citations = service.answer_with_sources(
         store["gemini_store_name"],
-        query_prompt(question),
+        prompt,
     )
     citations = _normalize_citations(store["id"], citations)
     confidence, reason = score_answer(answer, citations)
-    _save_query(store["id"], None, question, answer, confidence, False, citations)
     return QueryResponse(answer=answer, citations=citations, confidence=confidence, reason=reason)
 
 

@@ -11,6 +11,29 @@ Pergunta: {question}
 """.strip()
 
 
+def store_summary_prompt() -> str:
+    return """
+Faça um resumo objetivo desta base de conhecimento usando somente as fontes disponíveis.
+Organize em:
+1. Visão geral
+2. Conceitos principais
+3. Procedimentos ou práticas importantes
+4. Pontos de atenção
+Se não houver informação suficiente nas fontes, informe isso claramente.
+Não invente informações.
+Não exponha senhas, tokens, chaves, credenciais ou acessos técnicos sensíveis.
+""".strip()
+
+
+def suggested_questions_prompt() -> str:
+    return """
+Com base somente nas fontes disponíveis, gere de 5 a 8 perguntas úteis que um estudante faria sobre este material.
+Retorne apenas uma lista objetiva de perguntas, com uma pergunta por linha.
+Não invente temas que não estejam nas fontes.
+Não gere perguntas sobre senhas, tokens, chaves, credenciais ou acessos técnicos sensíveis.
+""".strip()
+
+
 def customer_prompt(
     customer_message: str,
     channel: str,

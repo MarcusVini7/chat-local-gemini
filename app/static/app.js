@@ -13,6 +13,8 @@ const state = {
   selectedStore: null,
   activeTab: "chat",
   chatMode: localStorage.getItem(STORAGE_KEYS.chatMode) || "query",
+  summaryResult: null,
+  editingNoteId: null,
 };
 
 const elements = {};
@@ -30,6 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   [
     "apiStatus",
+    "cancelNote",
     "cancelStoreForm",
     "channelSelect",
     "checkApi",
@@ -47,17 +50,30 @@ function cacheElements() {
     "emptyState",
     "escalateFilter",
     "fileInput",
+    "generateQuestions",
+    "generateSummary",
     "historyList",
     "historyPanel",
     "lastApiCheck",
     "messageList",
+    "newNote",
     "newStoreForm",
+    "noteContent",
+    "noteForm",
+    "notesList",
+    "notesPanel",
+    "noteTitle",
     "notice",
     "openSidebar",
     "questionInput",
+    "questionCitations",
+    "questionsEmpty",
     "refreshDocuments",
     "refreshHistory",
+    "refreshNotes",
     "refreshStores",
+    "saveNote",
+    "saveSummaryNote",
     "saveToken",
     "sendQuestion",
     "sidebar",
@@ -65,6 +81,12 @@ function cacheElements() {
     "storeList",
     "storeTenant",
     "storeTitle",
+    "suggestedQuestions",
+    "summaryCitations",
+    "summaryEmpty",
+    "summaryMeta",
+    "summaryResult",
+    "summaryText",
     "testToken",
     "tenantIdInput",
     "toggleStoreForm",
@@ -105,6 +127,13 @@ function bindEvents() {
   elements.refreshHistory.addEventListener("click", loadHistory);
   elements.confidenceFilter.addEventListener("change", loadHistory);
   elements.escalateFilter.addEventListener("change", loadHistory);
+  elements.generateSummary.addEventListener("click", generateStoreSummary);
+  elements.saveSummaryNote.addEventListener("click", saveSummaryAsNote);
+  elements.generateQuestions.addEventListener("click", generateSuggestedQuestions);
+  elements.newNote.addEventListener("click", () => openNoteEditor());
+  elements.refreshNotes.addEventListener("click", loadNotes);
+  elements.noteForm.addEventListener("submit", saveNote);
+  elements.cancelNote.addEventListener("click", closeNoteEditor);
   elements.tabs.forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
@@ -321,7 +350,14 @@ function restoreSelectedStore() {
 }
 
 function selectStore(store) {
+  const previousStoreKey = state.selectedStore
+    ? `${state.selectedStore.tenantId}:${state.selectedStore.storeKey}`
+    : null;
+  const nextStoreKey = store ? `${store.tenantId}:${store.storeKey}` : null;
   state.selectedStore = store;
+  if (previousStoreKey !== nextStoreKey) {
+    resetNotebookSession();
+  }
   document.querySelectorAll(".store-item").forEach((item) => {
     item.classList.toggle(
       "active",
@@ -394,6 +430,8 @@ function switchTab(tabName) {
     loadDocuments();
   } else if (tabName === "history") {
     loadHistory();
+  } else if (tabName === "notes") {
+    loadNotes();
   }
 }
 
@@ -474,6 +512,7 @@ async function sendQuestion(event) {
       method: "POST",
       body: JSON.stringify(payload),
     });
+    result.sourceQuestion = question;
     loadingMessage.remove();
     appendMessage("assistant", result);
   } catch (error) {
@@ -514,10 +553,15 @@ function appendMessage(role, result, persist = true) {
     const heading = createElement("div", "message-heading");
     heading.append(createElement("div", "message-label", result.isError ? "Erro" : "Resposta"));
     if (!result.isError && result.answer) {
+      const actions = createElement("div", "message-actions");
       const copyButton = createElement("button", "button ghost copy-answer", "Copiar resposta");
       copyButton.type = "button";
       copyButton.addEventListener("click", () => copyAnswer(copyButton, result.answer));
-      heading.append(copyButton);
+      const saveButton = createElement("button", "button ghost copy-answer", "Salvar como nota");
+      saveButton.type = "button";
+      saveButton.addEventListener("click", () => saveChatResponseAsNote(saveButton, result));
+      actions.append(copyButton, saveButton);
+      heading.append(actions);
     }
     content.append(heading);
   }
@@ -705,6 +749,319 @@ function renderHistory(items) {
   });
 }
 
+async function generateStoreSummary() {
+  if (!state.selectedStore) {
+    showToast("Selecione uma base para gerar o resumo.", "error");
+    return;
+  }
+  setButtonBusy(elements.generateSummary, true, "Gerando resumo...");
+  elements.summaryEmpty.textContent = "Gerando resumo...";
+  elements.summaryEmpty.classList.remove("hidden");
+  elements.summaryResult.classList.add("hidden");
+  clearNotice();
+
+  try {
+    const result = await apiRequest("/stores/summary", {
+      method: "POST",
+      body: JSON.stringify(selectedStorePayload()),
+    });
+    state.summaryResult = result;
+    elements.summaryText.textContent = result.summary || "";
+    elements.summaryMeta.replaceChildren(
+      createBadge(`Confiança: ${translateConfidence(result.confidence)}`, result.confidence),
+      createBadge(result.reason || "Motivo não informado"),
+    );
+    elements.summaryCitations.replaceChildren(renderCitations(result.citations));
+    elements.summaryEmpty.classList.add("hidden");
+    elements.summaryResult.classList.remove("hidden");
+  } catch (error) {
+    state.summaryResult = null;
+    elements.summaryEmpty.textContent = "Não foi possível gerar o resumo.";
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.generateSummary, false, "Gerar resumo");
+  }
+}
+
+async function saveSummaryAsNote() {
+  if (!state.summaryResult || !state.selectedStore) {
+    return;
+  }
+  setButtonBusy(elements.saveSummaryNote, true, "Salvando...");
+  try {
+    await createNote({
+      title: `Resumo - ${state.selectedStore.displayName}`.slice(0, 200),
+      content: contentWithSources(
+        state.summaryResult.summary,
+        state.summaryResult.citations,
+      ),
+      sourceType: "summary",
+      sourceQueryId: null,
+    });
+    showToast("Resumo salvo como nota.", "success");
+    await loadNotes();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.saveSummaryNote, false, "Salvar resumo como nota");
+  }
+}
+
+async function generateSuggestedQuestions() {
+  if (!state.selectedStore) {
+    showToast("Selecione uma base para gerar perguntas.", "error");
+    return;
+  }
+  setButtonBusy(elements.generateQuestions, true, "Gerando perguntas...");
+  elements.questionsEmpty.textContent = "Gerando perguntas...";
+  elements.questionsEmpty.classList.remove("hidden");
+  elements.suggestedQuestions.classList.add("hidden");
+  elements.questionCitations.replaceChildren();
+  clearNotice();
+
+  try {
+    const result = await apiRequest("/stores/suggest-questions", {
+      method: "POST",
+      body: JSON.stringify(selectedStorePayload()),
+    });
+    renderSuggestedQuestions(result.questions);
+    elements.questionCitations.replaceChildren(renderCitations(result.citations));
+  } catch (error) {
+    elements.questionsEmpty.textContent = "Não foi possível gerar perguntas.";
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.generateQuestions, false, "Gerar perguntas");
+  }
+}
+
+function renderSuggestedQuestions(questions) {
+  elements.suggestedQuestions.replaceChildren();
+  if (!Array.isArray(questions) || !questions.length) {
+    elements.questionsEmpty.textContent = "Nenhuma pergunta foi retornada pelas fontes.";
+    elements.questionsEmpty.classList.remove("hidden");
+    elements.suggestedQuestions.classList.add("hidden");
+    return;
+  }
+
+  questions.forEach((question) => {
+    const row = createElement("div", "suggested-question");
+    const askButton = createElement("button", "button secondary", "Perguntar no chat");
+    askButton.type = "button";
+    askButton.addEventListener("click", () => {
+      switchTab("chat");
+      elements.questionInput.value = question;
+      elements.questionInput.focus();
+    });
+    row.append(createElement("span", "", question), askButton);
+    elements.suggestedQuestions.append(row);
+  });
+  elements.questionsEmpty.classList.add("hidden");
+  elements.suggestedQuestions.classList.remove("hidden");
+}
+
+async function loadNotes() {
+  if (!state.selectedStore) {
+    return;
+  }
+  setLoading(elements.notesList, "Carregando notas...");
+  const query = new URLSearchParams(selectedStorePayload());
+  try {
+    const data = await apiRequest(`/notes?${query}`);
+    renderNotes(Array.isArray(data.items) ? data.items : []);
+  } catch (error) {
+    setLoading(elements.notesList, error.message);
+    showNotice(error.message);
+  }
+}
+
+function renderNotes(notes) {
+  elements.notesList.replaceChildren();
+  if (!notes.length) {
+    setLoading(elements.notesList, "Nenhuma nota salva nesta base.");
+    return;
+  }
+
+  notes.forEach((note) => {
+    const item = createElement("article", "note-item");
+    item.append(
+      createElement("div", "note-title", note.title),
+      createElement("p", "note-content", note.content),
+      createElement(
+        "div",
+        "note-meta",
+        `${note.sourceType || "manual"} · Atualizada em ${formatDate(note.updatedAt)}`,
+      ),
+    );
+    const actions = createElement("div", "note-actions");
+    const editButton = createElement("button", "button ghost", "Editar");
+    editButton.type = "button";
+    editButton.addEventListener("click", () => openNoteEditor(note));
+    const deleteButton = createElement("button", "button ghost danger", "Excluir");
+    deleteButton.type = "button";
+    deleteButton.addEventListener("click", () => deleteNote(note));
+    actions.append(editButton, deleteButton);
+    item.append(actions);
+    elements.notesList.append(item);
+  });
+}
+
+function openNoteEditor(note = null) {
+  state.editingNoteId = note ? note.id : null;
+  elements.noteTitle.value = note ? note.title : "";
+  elements.noteContent.value = note ? note.content : "";
+  elements.saveNote.textContent = note ? "Atualizar nota" : "Salvar nota";
+  elements.noteForm.classList.remove("hidden");
+  elements.noteTitle.focus();
+}
+
+function closeNoteEditor() {
+  state.editingNoteId = null;
+  elements.noteForm.reset();
+  elements.saveNote.textContent = "Salvar nota";
+  elements.noteForm.classList.add("hidden");
+}
+
+async function saveNote(event) {
+  event.preventDefault();
+  if (!state.selectedStore) {
+    return;
+  }
+  const title = elements.noteTitle.value.trim();
+  const content = elements.noteContent.value.trim();
+  if (!title || !content) {
+    showToast("Informe título e conteúdo da nota.", "error");
+    return;
+  }
+
+  setButtonBusy(elements.saveNote, true, "Salvando...");
+  try {
+    if (state.editingNoteId) {
+      await apiRequest(`/notes/${state.editingNoteId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ title, content }),
+      });
+      showToast("Nota atualizada.", "success");
+    } else {
+      await createNote({
+        title,
+        content,
+        sourceType: "manual",
+        sourceQueryId: null,
+      });
+      showToast("Nota criada.", "success");
+    }
+    closeNoteEditor();
+    await loadNotes();
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(
+      elements.saveNote,
+      false,
+      state.editingNoteId ? "Atualizar nota" : "Salvar nota",
+    );
+  }
+}
+
+async function deleteNote(note) {
+  if (!window.confirm(`Excluir a nota "${note.title}"?`)) {
+    return;
+  }
+  try {
+    await apiRequest(`/notes/${note.id}`, { method: "DELETE" });
+    if (state.editingNoteId === note.id) {
+      closeNoteEditor();
+    }
+    showToast("Nota excluída.", "success");
+    await loadNotes();
+  } catch (error) {
+    showNotice(error.message);
+  }
+}
+
+async function createNote(note) {
+  return apiRequest("/notes", {
+    method: "POST",
+    body: JSON.stringify({
+      ...selectedStorePayload(),
+      ...note,
+    }),
+  });
+}
+
+async function saveChatResponseAsNote(button, result) {
+  if (!state.selectedStore) {
+    return;
+  }
+  setButtonBusy(button, true, "Salvando...");
+  try {
+    await createNote({
+      title: suggestedNoteTitle(result.sourceQuestion),
+      content: contentWithSources(result.answer, result.citations),
+      sourceType: "chat",
+      sourceQueryId: null,
+    });
+    showToast("Resposta salva como nota.", "success");
+    if (state.activeTab === "notes") {
+      await loadNotes();
+    }
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(button, false, "Salvar como nota");
+  }
+}
+
+function selectedStorePayload() {
+  return {
+    tenantId: state.selectedStore.tenantId,
+    storeKey: state.selectedStore.storeKey,
+  };
+}
+
+function suggestedNoteTitle(question) {
+  const title = String(question || "Resposta do chat")
+    .split(/\r?\n/, 1)[0]
+    .trim();
+  return title.slice(0, 120) || "Resposta do chat";
+}
+
+function contentWithSources(content, citations) {
+  const lines = [String(content || "").trim()];
+  if (Array.isArray(citations) && citations.length) {
+    lines.push("", "Fontes:");
+    citations.forEach((citation) => {
+      const snippet = citation.snippet ? `: ${citation.snippet}` : "";
+      const page =
+        citation.page !== null && citation.page !== undefined
+          ? ` (página ${citation.page})`
+          : "";
+      lines.push(`- ${citation.source || "Fonte não informada"}${page}${snippet}`);
+    });
+  }
+  return lines.join("\n");
+}
+
+function resetNotebookSession() {
+  state.summaryResult = null;
+  state.editingNoteId = null;
+  if (!elements.summaryEmpty) {
+    return;
+  }
+  elements.summaryEmpty.textContent = "Nenhum resumo gerado nesta sessão.";
+  elements.summaryEmpty.classList.remove("hidden");
+  elements.summaryResult.classList.add("hidden");
+  elements.summaryText.textContent = "";
+  elements.summaryMeta.replaceChildren();
+  elements.summaryCitations.replaceChildren();
+  elements.questionsEmpty.textContent = "Nenhuma pergunta gerada nesta sessão.";
+  elements.questionsEmpty.classList.remove("hidden");
+  elements.suggestedQuestions.classList.add("hidden");
+  elements.suggestedQuestions.replaceChildren();
+  elements.questionCitations.replaceChildren();
+  closeNoteEditor();
+}
+
 function createBadge(text, variant = "") {
   return createElement("span", `badge ${variant}`.trim(), text);
 }
@@ -769,6 +1126,7 @@ function persistChatMessage(role, result) {
       reason: result.reason || null,
       shouldEscalate: Boolean(result.shouldEscalate),
       isError: Boolean(result.isError),
+      sourceQuestion: result.sourceQuestion || null,
     },
   });
   try {

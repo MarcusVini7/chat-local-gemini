@@ -75,6 +75,7 @@
           <button class="tab active" type="button" data-tab="chat">Chat</button>
           <button class="tab" type="button" data-tab="documents">Documentos</button>
           <button class="tab" type="button" data-tab="history">Histórico</button>
+          <button class="tab" type="button" data-tab="notes">Resumo &amp; Notas</button>
         </nav>
 
         <div class="notice hidden" id="notice" role="status"></div>
@@ -161,6 +162,66 @@
           </div>
 
           <div class="data-list history-list" id="historyList" aria-live="polite"></div>
+        </section>
+
+        <section class="panel notebook-panel hidden" id="notesPanel" data-panel="notes">
+          <section class="notebook-section">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Visão consolidada</span>
+                <h2>Resumo da base</h2>
+              </div>
+              <button class="button primary" id="generateSummary" type="button">Gerar resumo</button>
+            </div>
+            <div class="notebook-empty" id="summaryEmpty">Nenhum resumo gerado nesta sessão.</div>
+            <div class="summary-result hidden" id="summaryResult">
+              <p class="summary-text" id="summaryText"></p>
+              <div class="message-meta" id="summaryMeta"></div>
+              <div id="summaryCitations"></div>
+              <button class="button secondary save-summary" id="saveSummaryNote" type="button">
+                Salvar resumo como nota
+              </button>
+            </div>
+          </section>
+
+          <section class="notebook-section">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Exploração</span>
+                <h2>Perguntas sugeridas</h2>
+              </div>
+              <button class="button secondary" id="generateQuestions" type="button">Gerar perguntas</button>
+            </div>
+            <div class="notebook-empty" id="questionsEmpty">Nenhuma pergunta gerada nesta sessão.</div>
+            <div class="suggested-questions hidden" id="suggestedQuestions"></div>
+            <div id="questionCitations"></div>
+          </section>
+
+          <section class="notebook-section notes-section">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Anotações locais</span>
+                <h2>Notas</h2>
+              </div>
+              <div class="button-row">
+                <button class="button primary" id="newNote" type="button">Nova nota</button>
+                <button class="button secondary" id="refreshNotes" type="button">Atualizar notas</button>
+              </div>
+            </div>
+
+            <form class="note-editor hidden" id="noteForm">
+              <label for="noteTitle">Título</label>
+              <input id="noteTitle" maxlength="200" required>
+              <label for="noteContent">Conteúdo</label>
+              <textarea id="noteContent" rows="8" required></textarea>
+              <div class="button-row">
+                <button class="button primary" id="saveNote" type="submit">Salvar nota</button>
+                <button class="button ghost" id="cancelNote" type="button">Cancelar</button>
+              </div>
+            </form>
+
+            <div class="data-list notes-list" id="notesList" aria-live="polite"></div>
+          </section>
         </section>
       </main>
     </div>

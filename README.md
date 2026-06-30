@@ -49,6 +49,13 @@ chat e revisar o histórico. O topo mostra o estado da API, e a sidebar permite
 salvar e testar o token interno. A store selecionada e as mensagens locais de
 cada store ficam no `localStorage` do navegador.
 
+Na aba **Resumo & Notas**:
+
+- **Gerar resumo** cria uma visão consolidada da base com citações.
+- **Gerar perguntas** sugere perguntas fundamentadas que podem ser levadas ao chat.
+- **Salvar como nota** registra uma resposta do chat e suas fontes no SQLite local.
+- As notas podem ser criadas manualmente, editadas e excluídas pela própria interface.
+
 Se `INTERNAL_API_TOKEN` estiver configurado no `.env`, informe o mesmo token no
 campo da interface. Com o token vazio, a interface funciona sem token.
 
@@ -130,8 +137,9 @@ curl -fsS http://127.0.0.1:8765/stores \
   | python -m json.tool
 ```
 
-`GET /health` permanece público. Stores, documentos, queries e
-`/answer/customer` exigem o header quando `INTERNAL_API_TOKEN` está configurado.
+`GET /health` permanece público. Stores, documentos, queries, notas, resumo,
+perguntas sugeridas e `/answer/customer` exigem o header quando
+`INTERNAL_API_TOKEN` está configurado.
 
 ## Endpoints
 
@@ -268,9 +276,9 @@ python scripts/smoke_test.py
 ```
 
 O smoke test carrega o `.env`, envia `X-Internal-Token` quando configurado e
-valida `/health`, as listagens e o 404 esperado ao consultar uma store
-inexistente. Testes com store/upload/query reais precisam de `GEMINI_API_KEY`
-configurada.
+valida `/health`, as listagens (incluindo notas) e o 404 esperado ao consultar
+uma store inexistente. Testes com store/upload/query reais precisam de
+`GEMINI_API_KEY` configurada.
 
 ### Teste manual da autenticação
 
@@ -302,6 +310,7 @@ Tabelas:
 - `stores`
 - `documents`
 - `queries`
+- `notes`
 
 ## Observações práticas
 
