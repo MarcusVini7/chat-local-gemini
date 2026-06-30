@@ -1,0 +1,44 @@
+import json
+import sys
+import urllib.error
+import urllib.request
+
+
+BASE_URL = "http://127.0.0.1:8765"
+
+
+def request(method: str, path: str, payload: dict | None = None) -> tuple[int, str]:
+    data = None
+    headers = {}
+    if payload is not None:
+        data = json.dumps(payload).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(BASE_URL + path, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as res:
+            return res.status, res.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode("utf-8")
+
+
+def main() -> int:
+    status, body = request("GET", "/health")
+    print("GET /health", status, body)
+    if status != 200:
+        return 1
+
+    status, body = request(
+        "POST",
+        "/query",
+        {"tenantId": "ihx", "storeKey": "access-pro", "question": "ping"},
+    )
+    print("POST /query missing store", status, body)
+    if status != 404:
+        return 1
+
+    print("Smoke test OK")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
