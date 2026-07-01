@@ -1318,6 +1318,18 @@ label {
 
 /* ── Integridade ─────────────────────────────────────────────────────────── */
 
+.feature-inputs {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.feature-inputs input,
+.feature-inputs select {
+  flex: 1 1 220px;
+}
+
 .integrity-alert {
   margin-bottom: 14px;
   padding: 10px 14px;

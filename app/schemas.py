@@ -247,6 +247,39 @@ class StoreStatsResponse(BaseModel):
     integrity: StoreIntegrityStats | None = None
 
 
+# ── Recursos extras (guia de estudos, FAQ, briefing, timeline) ────────────────────────
+
+class StudyGuideRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+    topic: str = Field(min_length=1)
+    level: str = "intermediario"
+
+
+class FaqRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+    nQuestions: int = Field(default=10, ge=3, le=20)
+
+
+class BriefingRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+    audience: str = "executivo"
+
+
+class TimelineRequest(BaseModel):
+    tenantId: str = Field(min_length=1)
+    storeKey: str = Field(min_length=1)
+
+
+class StudyFeatureResponse(BaseModel):
+    content: str
+    citations: list[Citation]
+    confidence: Confidence
+    reason: str
+
+
 class QueryListItem(BaseModel):
     id: int
     storeId: int

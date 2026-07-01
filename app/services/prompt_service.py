@@ -68,6 +68,44 @@ Mensagem do cliente: {customer_message}
 """.strip()
 
 
+def study_guide_prompt(topic: str, level: str) -> str:
+    return f"""
+Com base somente nas fontes disponíveis, crie um guia de estudos sobre "{topic}" (nível {level}).
+Estruture em 3 seções: 1. Conceitos-chave (bullets objetivos) 2. Exercícios práticos (3 perguntas) 3. Referências (cite os trechos-fonte usados).
+Não invente conteúdo que não esteja nas fontes.
+Se as fontes não cobrirem o tópico, diga isso claramente.
+Não exponha senhas, tokens, chaves, credenciais ou acessos técnicos sensíveis.
+""".strip()
+
+
+def faq_prompt(n_questions: int) -> str:
+    return f"""
+A partir das fontes disponíveis, identifique os principais tópicos e gere um FAQ com {n_questions} perguntas e respostas.
+Formato: "P: pergunta" seguido de "R: resposta objetiva baseada nas fontes", uma dupla por bloco.
+Não invente perguntas sobre temas ausentes das fontes.
+Não exponha senhas, tokens, chaves, credenciais ou acessos técnicos sensíveis.
+""".strip()
+
+
+def briefing_prompt(audience: str) -> str:
+    return f"""
+Resuma as fontes disponíveis em um briefing executivo para público {audience}, em até 350 palavras.
+Seções obrigatórias: Contexto, Principais pontos (3 a 5 bullets), Implicações, Próximos passos.
+Seja direto, sem introduções ou repetições.
+Não invente informações fora das fontes.
+Não exponha senhas, tokens, chaves, credenciais ou acessos técnicos sensíveis.
+""".strip()
+
+
+def timeline_prompt() -> str:
+    return """
+Extraia das fontes todos os eventos com datas ou períodos identificáveis e organize-os em uma timeline cronológica.
+Agrupe por período (mês/ano) e resuma em 1-2 frases o que ocorreu em cada um.
+Formato: "PERÍODO -> resumo do evento", em ordem cronológica.
+Se não houver datas nas fontes, diga isso explicitamente e não invente nenhuma.
+""".strip()
+
+
 def customer_requested_human(message: str) -> bool:
     lowered = message.lower()
     terms = [

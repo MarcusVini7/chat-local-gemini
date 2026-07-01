@@ -33,6 +33,18 @@ document.addEventListener("DOMContentLoaded", () => {
 function cacheElements() {
   [
     "apiStatus",
+    "studyTopicInput",
+    "briefingAudienceSelect",
+    "studyGuideBtn",
+    "faqBtn",
+    "briefingBtn",
+    "timelineBtn",
+    "featureEmpty",
+    "featureResult",
+    "featureResultText",
+    "featureResultMeta",
+    "featureResultCitations",
+    "saveFeatureNote",
     "cancelNote",
     "cancelStoreForm",
     "channelSelect",
@@ -151,6 +163,11 @@ function bindEvents() {
   elements.generateSummary.addEventListener("click", generateStoreSummary);
   elements.saveSummaryNote.addEventListener("click", saveSummaryAsNote);
   elements.generateQuestions.addEventListener("click", generateSuggestedQuestions);
+  elements.studyGuideBtn.addEventListener("click", generateStudyGuide);
+  elements.faqBtn.addEventListener("click", generateFaq);
+  elements.briefingBtn.addEventListener("click", generateBriefing);
+  elements.timelineBtn.addEventListener("click", generateTimeline);
+  elements.saveFeatureNote.addEventListener("click", saveFeatureAsNote);
   elements.newNote.addEventListener("click", () => openNoteEditor());
   elements.refreshNotes.addEventListener("click", loadNotes);
   elements.noteForm.addEventListener("submit", saveNote);
@@ -1475,8 +1492,90 @@ function contentWithSources(content, citations) {
   return lines.join("\n");
 }
 
+async function generateStudyGuide() {
+  const topic = elements.studyTopicInput.value.trim();
+  if (!topic) {
+    showToast("Informe um tópico para o guia de estudos.", "error");
+    return;
+  }
+  await runFeature(elements.studyGuideBtn, "/features/study-guide", {
+    topic,
+    level: "intermediario",
+  });
+}
+
+async function generateFaq() {
+  await runFeature(elements.faqBtn, "/features/faq", { nQuestions: 10 });
+}
+
+async function generateBriefing() {
+  await runFeature(elements.briefingBtn, "/features/briefing", {
+    audience: elements.briefingAudienceSelect.value,
+  });
+}
+
+async function generateTimeline() {
+  await runFeature(elements.timelineBtn, "/features/timeline", {});
+}
+
+async function runFeature(button, path, extraPayload) {
+  if (!state.selectedStore) {
+    showNotice("Crie ou selecione uma base para começar.");
+    return;
+  }
+  const originalLabel = button.textContent;
+  setButtonBusy(button, true, "Gerando...");
+  try {
+    const result = await apiRequest(path, {
+      method: "POST",
+      body: JSON.stringify({ ...selectedStorePayload(), ...extraPayload }),
+    });
+    state.featureResult = result;
+    renderFeatureResult(result);
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(button, false, originalLabel);
+  }
+}
+
+function renderFeatureResult(result) {
+  elements.featureEmpty.classList.add("hidden");
+  elements.featureResult.classList.remove("hidden");
+  elements.featureResultText.textContent = result.content;
+  elements.featureResultMeta.replaceChildren(
+    createBadge(`Confiança: ${translateConfidence(result.confidence)}`, result.confidence),
+    createBadge(result.reason),
+  );
+  elements.featureResultCitations.replaceChildren(renderCitations(result.citations));
+}
+
+async function saveFeatureAsNote() {
+  if (!state.featureResult) {
+    return;
+  }
+  setButtonBusy(elements.saveFeatureNote, true, "Salvando...");
+  try {
+    await createNote({
+      title: "Recurso gerado",
+      content: contentWithSources(state.featureResult.content, state.featureResult.citations),
+      sourceType: "feature",
+      sourceQueryId: null,
+    });
+    showToast("Recurso salvo como nota.", "success");
+    if (state.activeTab === "notes") {
+      await loadNotes();
+    }
+  } catch (error) {
+    showNotice(error.message);
+  } finally {
+    setButtonBusy(elements.saveFeatureNote, false, "Salvar como nota");
+  }
+}
+
 function resetNotebookSession() {
   state.summaryResult = null;
+  state.featureResult = null;
   state.editingNoteId = null;
   if (!elements.summaryEmpty) {
     return;
@@ -1492,6 +1591,12 @@ function resetNotebookSession() {
   elements.suggestedQuestions.classList.add("hidden");
   elements.suggestedQuestions.replaceChildren();
   elements.questionCitations.replaceChildren();
+  elements.featureEmpty.textContent = "Nenhum recurso gerado nesta sessão.";
+  elements.featureEmpty.classList.remove("hidden");
+  elements.featureResult.classList.add("hidden");
+  elements.featureResultText.textContent = "";
+  elements.featureResultMeta.replaceChildren();
+  elements.featureResultCitations.replaceChildren();
   closeNoteEditor();
 }
 

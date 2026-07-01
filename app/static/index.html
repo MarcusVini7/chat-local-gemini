@@ -260,6 +260,38 @@
             <div id="questionCitations"></div>
           </section>
 
+          <section class="notebook-section">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Recursos extras</span>
+                <h2>Guia, FAQ, Briefing &amp; Timeline</h2>
+              </div>
+            </div>
+            <div class="feature-inputs">
+              <input id="studyTopicInput" placeholder="Tópico do guia de estudos">
+              <select id="briefingAudienceSelect">
+                <option value="executivo">Briefing: executivo</option>
+                <option value="tecnico">Briefing: técnico</option>
+                <option value="iniciante">Briefing: iniciante</option>
+              </select>
+            </div>
+            <div class="button-row">
+              <button class="button secondary" id="studyGuideBtn" type="button">Guia de estudos</button>
+              <button class="button secondary" id="faqBtn" type="button">Gerar FAQ</button>
+              <button class="button secondary" id="briefingBtn" type="button">Briefing executivo</button>
+              <button class="button secondary" id="timelineBtn" type="button">Timeline</button>
+            </div>
+            <div class="notebook-empty" id="featureEmpty">Nenhum recurso gerado nesta sessão.</div>
+            <div class="summary-result hidden" id="featureResult">
+              <p class="summary-text" id="featureResultText"></p>
+              <div class="message-meta" id="featureResultMeta"></div>
+              <div id="featureResultCitations"></div>
+              <button class="button secondary save-summary" id="saveFeatureNote" type="button">
+                Salvar como nota
+              </button>
+            </div>
+          </section>
+
           <section class="notebook-section notes-section">
             <div class="panel-header">
               <div>
